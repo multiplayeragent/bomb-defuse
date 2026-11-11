@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bomb Defuse</title>
+<style>
+  :root { --ink: #eef2f6; --dim: #9aa6b4; --panel: #141a22f2; --red: #ff4b3e; --green: #3ee08a; --gold: #ffcf3f; --paper: #f4ecd8; --paperInk: #2b2418; }
+  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body { background: radial-gradient(1000px 700px at 30% 20%, #2a3340, #12161c 70%); font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); user-select: none; -webkit-user-select: none; }
+  [hidden] { display: none !important; }
+  #game { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; z-index: 2; }
+  #game.ghost { pointer-events: none; }
+  .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 3px #000c; z-index: 4; }
+  #top { top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); display: flex; flex-wrap: wrap; gap: 6px; max-width: 70vw; }
+  #top > span { padding: 5px 11px; border-radius: 999px; background: #000a; font-size: 13px; font-weight: 700; }
+  #msg { left: 0; right: 0; text-align: center; font-weight: 900; font-size: clamp(22px, 4.6vw, 40px); line-height: 1.15; padding: 0 10px; box-sizing: border-box; }
+  #msg .b { display: inline-block; background: #0b0f15d8; padding: 10px 20px 12px; border-radius: 16px; border: 1px solid #ffffff22; }
+  #msg small { display: block; font-size: clamp(13px, 2.3vw, 18px); font-weight: 600; margin-top: 6px; color: #dfe6ee; }
+  .r { color: var(--red); } .g { color: var(--green); } .y { color: var(--gold); }
+  /* the manual: paper pages the experts read */
+  #manual { position: fixed; display: flex; flex-direction: column; box-sizing: border-box; padding: 8px; gap: 8px; z-index: 1; }
+  #mbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 10px; border-radius: 12px; background: #000b; }
+  #mClock { font: 800 28px ui-monospace, Consolas, monospace; color: var(--red); text-shadow: 0 0 10px #ff4b3e88; min-width: 82px; }
+  #mStrikes { font-weight: 800; color: var(--red); letter-spacing: 2px; }
+  #mInfo { color: var(--dim); font-size: 13px; flex: 1; min-width: 120px; }
+  #tabs { display: flex; gap: 6px; overflow-x: auto; }
+  #tabs button { min-height: 44px; flex: 1; min-width: 74px; border: 0; border-radius: 10px 10px 4px 4px; background: #d9cfb6; color: #4a4030; font: 800 14px system-ui, sans-serif; cursor: pointer; opacity: .55; }
+  #tabs button.on { opacity: 1; background: var(--paper); box-shadow: 0 -3px 0 var(--gold) inset; }
+  #tabs button.live { opacity: .9; }
+  #tabs button.done::after { content: " ✓"; color: #1c8a4e; }
+  #pages { flex: 1; min-height: 0; overflow: auto; background: var(--paper); color: var(--paperInk); border-radius: 6px 6px 12px 12px; padding: 12px 16px; box-shadow: 0 10px 30px #0008; user-select: text; -webkit-user-select: text;
+           background-image: repeating-linear-gradient(transparent 0 25px, #c9bea233 25px 26px); }
+  #pages h3 { margin: 0 0 6px; font-size: 18px; } #pages h4 { margin: 10px 0 2px; font-size: 15px; color: #8a2a1e; }
+  #pages p { margin: 4px 0; font-size: 14px; } #pages ol { margin: 2px 0 6px; padding-left: 22px; font-size: 14px; } #pages li { margin: 2px 0; }
+  #pages li.hl { background: #ffd23f88; border-radius: 4px; }
+  .cols { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; text-align: center; }
+  .cols div { background: #fffaf0; border: 1px solid #c9bea2; border-radius: 8px; padding: 4px 2px; }
+  .cols b { display: block; font-size: 12px; color: #8a2a1e; }
+  .cols span { display: block; font-size: 22px; line-height: 1.25; }
+  .cols span i { display: block; font-size: 9px; font-style: normal; color: #7a6e58; line-height: 1; margin-bottom: 2px; }
+  .mazes { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .mazes figure { margin: 0; text-align: center; font-weight: 800; } .mazes canvas { width: 100%; aspect-ratio: 1; background: #fffaf0; border: 1px solid #c9bea2; border-radius: 8px; }
+  table.strip { border-collapse: collapse; font-size: 14px; } table.strip td { border: 1px solid #c9bea2; padding: 3px 10px; }
+  /* chat + quick chat */
+  #side { position: fixed; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; box-sizing: border-box; background: var(--panel); z-index: 3; }
+  #side.right { border-left: 1px solid #ffffff1c; padding-top: max(8px, env(safe-area-inset-top)); padding-right: max(10px, env(safe-area-inset-right)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  #side.bottom { border-top: 1px solid #ffffff1c; border-radius: 14px 14px 0 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+  #hint { font-weight: 700; font-size: 13px; color: var(--gold); }
+  #chat { flex: 1; min-height: 34px; overflow: auto; background: #0006; border-radius: 10px; padding: 6px 9px; font-size: 14px; display: flex; flex-direction: column; gap: 2px; user-select: text; -webkit-user-select: text; }
+  #chat b { margin-right: 6px; } #chat .sys { color: var(--dim); font-style: italic; }
+  #quick { display: flex; flex-wrap: wrap; gap: 5px; max-height: 98px; overflow-y: auto; scrollbar-width: thin; }
+  #side.bottom #quick { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; }
+  #quick button { flex: none; min-height: 44px; border: 1px solid #ffffff2a; border-radius: 10px; background: #ffffff12; color: #fff; font: 700 13px system-ui, sans-serif; padding: 0 11px; cursor: pointer; white-space: nowrap; }
+  #quick button:active { background: #ffcf3f44; }
+  #say { display: flex; gap: 6px; }
+  #say input, #name { flex: 1; min-width: 0; height: 44px; border-radius: 10px; border: 1px solid #ffffff33; background: #ffffff12; color: #fff; padding: 0 12px; font: inherit; font-size: 16px; box-sizing: border-box; }
+  #say #name { flex: 0 1 92px; }
+  #say button, .go { min-height: 44px; border: 0; border-radius: 12px; background: var(--gold); color: #2a1d00; font: 800 15px system-ui, sans-serif; padding: 0 14px; cursor: pointer; }
+  #net { bottom: max(6px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); font-size: 12px; opacity: .75; z-index: 5; }
+  .over { position: fixed; inset: 0; display: grid; place-items: center; background: #05070bd0; padding: 10px; box-sizing: border-box; z-index: 10; }
+  .card { width: min(380px, calc(100vw - 32px)); max-height: 100%; overflow: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 18px; background: #1a212b; border: 1px solid #ffffff22; box-shadow: 0 20px 60px #0008; text-align: center; }
+  .card h2 { margin: 0; font-size: 30px; } .card h3 { margin: 4px 0 0; font-size: 13px; color: var(--gold); text-align: left; }
+  #oWhy, #oNext { color: var(--dim); }
+  #board { text-align: left; margin: 2px 0; padding-left: 26px; font-size: 14px; min-height: 30px; } #board li span { float: right; }
+</style>
+<script src="https://cdn.multiplayeragent.com/sdk/mp.global.js"></script>
+</head>
+<body>
+<div id="manual" hidden>
+  <div id="mbar"><span id="mClock">0:00</span><span id="mStrikes"></span><span id="mInfo"></span></div>
+  <div id="tabs"></div>
+  <div id="pages"></div>
+</div>
+<canvas id="game"></canvas>
+<div class="hud" id="top"><span id="phase"></span><span id="role" hidden></span></div>
+<div class="hud" id="msg"></div>
+<div id="side">
+  <div id="hint"></div>
+  <div id="chat"></div>
+  <div id="quick"></div>
+  <form id="say"><input id="sayText" maxlength="100" placeholder="Say something…" autocomplete="off" enterkeyhint="send"><input id="name" maxlength="14" autocomplete="off" aria-label="Your name"><button>Send</button></form>
+</div>
+<div class="hud" id="net">Connecting…</div>
+<div class="over" id="over" hidden><div class="card">
+  <h2 id="oTitle"></h2><div id="oWhy"></div><div id="oYou" class="y"></div>
+  <h3>Most bombs defused in a row</h3><ol id="board"><li>Loading…</li></ol>
+  <button class="go" id="again">Play again</button><div id="oNext"></div>
+</div></div>
+<script>
+/* ═══ BOMB DEFUSE · a Multiplayer Agent starter ═════════════════════════════════════════════
+ * One player holds the bomb. Everyone else holds the manual. Talk fast. Co-op, 2–6 players.
+ * Alone? Tock, a bot, reads the manual to you.
+ *
+ * WHERE THINGS ARE (search for the "── " headers):
+ *   CONFIG ........ every number worth tuning: clock, strikes, levels, the bot's reading speed
+ *   THE MANUAL .... the rules as data: wires, the button, keypad columns, mazes. Change a rule
+ *                   here and the manual pages, the checks and the bot all follow.
+ *   BOMB MAKER .... a bomb from a seed (serial, wires, button, keypad, maze) and its answers
+ *   CONNECTION .... MP_CONNECT, joining, the offline room, who is host
+ *   SEALED SECRETS  the Seal helper: the bomb is encrypted so only the defuser can see it
+ *   GAME (HOST) ... phases (brief, armed, defused, boom), picking the defuser, the clock and
+ *                   strikes, checking every cut and press, chat, taking over as a new host
+ *   BOT (HOST) .... Tock reads the right page to a lone defuser; the ?attract autopilot
+ *   ME ............ opening my bomb, cutting, pressing, holding, walking the maze
+ *   DRAW .......... the bomb and its four modules, particles, flashes
+ *   SCREENS ....... manual pages, HUD, banners, hints, chat, results, leaderboard, sounds
+ *   INPUT ......... tap/click the bomb, arrow keys for the maze, quick chat, Enter to chat
+ *
+ * HOW THE MULTIPLAYER WORKS (a relay room: no server code):
+ *   - Each player writes its OWN entity: `n` (name), `c` (color), `pk` (public key) once, and
+ *     `hb` (heartbeat) once a second.
+ *   - The HOST is the lowest sessionId among live players, worked out every frame. Only the
+ *     host writes shared fields: `game` (phase, level, who defuses, the clock as a timestamp
+ *     and a speed, strikes, solved modules, the streak; `v` goes up on every write), `bomb`
+ *     (the bomb's seed and progress, SEALED to the defuser; its own `v`) and `chat`.
+ *   - The bomb is HIDDEN: only the defuser can open `bomb`. The manual is plain: it is the
+ *     same for every bomb. The host makes the bomb, so it can read it too.
+ *   - Intents to the host: "act" (cut a wire, press/hold/let go of the button, press a key,
+ *     step in the maze), "chat", "ready". The host checks each one against the bomb.
+ *   - When the host changes, the defuser re-sends its bomb (sealed) to the new host ("role");
+ *     a new host asks for it with "who". The clock keeps running from its timestamp.
+ *   - ?attract plays offline: you defuse on autopilot while Tock reads (the preview video).
+ *   - Leaderboard "bombs-defused": the most bombs your team defused in a row.
+ */
+
+// ── CONFIG ──────────────────────────────────────────────────────────────────────────
+const CONFIG = {
+  maxStrikes: 3,          // this many mistakes and it blows
+  strikeSpeedup: 0.25,    // each strike makes the clock run this much faster (0.25 = 25%)
+  holdMs: 600,            // pressing the button longer than this counts as holding it
+  levels: [               // bomb 1, 2, 3…; past the last one, each bomb loses timeDrop seconds
+    { mods: ["wires", "button"], secs: 150 },
+    { mods: ["wires", "keypad", "button"], secs: 180 },
+    { mods: ["wires", "keypad", "maze", "button"], secs: 210 },
+  ],
+  timeDrop: 15,           // seconds less per bomb after the last level…
+  minSecs: 120,           // …but never less than this
+  briefMs: 5000,          // "X has the bomb" before the clock starts
+  defusedMs: 4500,        // the "Defused!" banner before the next bomb
+  offMs: 3500,            // the defuser walked away: banner before a new defuser takes over
+  overMs: 15000,          // results screen after a boom
+  leaveMs: 6000,          // a defuser silent this long walks away from the bomb
+  rejoinMs: 2500,         // a new host waits this long for the bomb to be re-sent
+  chatLines: 8,           // chat lines kept in state
+  chatMax: 100,           // characters per chat line
+  botLineMs: [2600, 3800],// Tock's pause between lines (ms)
+  botRepeatMs: 9000,      // Tock repeats a rule if you haven't acted on it
+  botName: "Tock",        // the bot that reads the manual to a lone defuser
+  board: "bombs-defused", // leaderboard: bombs defused in a row
+};
+const FRIENDLY = ["Sparky", "Fuse", "Pliers", "Rivet", "Volt", "Gizmo", "Widget", "Socket", "Bolt", "Cog"];
+const COLORS = ["#ff6b5e", "#4fa3ff", "#ffcf3f", "#3ee08a", "#c38bff", "#ff8fd1", "#5ee0e0", "#ffa94d"];
+const QUICK = {
+  defuser: ["3 wires", "4 wires", "5 wires", "6 wires", "Serial ends odd", "Serial ends even", "Red", "Blue", "Yellow", "White", "Black", "Holding it…", "Done ✓", "What next?", "Wait!"],
+  expert: ["How many wires?", "Last wire color?", "Serial odd or even?", "Button color + word?", "Tap it", "Hold it", "Let go NOW", "Up", "Down", "Left", "Right", "Which symbols?", "Where are the circles?", "Next module", "Slow down!"],
+};
+
+// ── THE MANUAL ──────────────────────────────────────────────────────────────────────
+// Wires are counted from the top. The first rule that is true says which wire to cut.
+// `say` is the rule as Tock reads it; `when(w, b)` checks it; `cut(w, b)` is the wire to cut (0 = top).
+const WIRE_COLORS = { red: "#e5413b", blue: "#3b7be5", yellow: "#f2c230", white: "#eef0f2", black: "#26282d" };
+const count = (w, c) => w.filter((x) => x === c).length;
+const lastOf = (w, c) => w.lastIndexOf(c);
+const WIRE_RULES = {
+  3: [
+    { say: "If the top wire is blue, cut the last wire.", when: (w) => w[0] === "blue", cut: (w) => w.length - 1 },
+    { say: "If there are two or more red wires, cut the first red wire.", when: (w) => count(w, "red") >= 2, cut: (w) => w.indexOf("red") },
+    { say: "Cut the middle wire.", when: () => true, cut: () => 1 },
+  ],
+  4: [
+    { say: "If there are no yellow wires, cut the third wire.", when: (w) => !count(w, "yellow"), cut: () => 2 },
+    { say: "If the serial ends in an even digit, cut the last yellow wire.", when: (w, b) => !b.odd, cut: (w) => lastOf(w, "yellow") },
+    { say: "If the last wire is black, cut the first wire.", when: (w) => w[3] === "black", cut: () => 0 },
+    { say: "Cut the second wire.", when: () => true, cut: () => 1 },
+  ],
+  5: [
+    { say: "If there is exactly one white wire, cut the white wire.", when: (w) => count(w, "white") === 1, cut: (w) => w.indexOf("white") },
+    { say: "If the serial ends odd and the top wire is red, cut the fourth wire.", when: (w, b) => b.odd && w[0] === "red", cut: () => 3 },
+    { say: "If there are more blue wires than red ones, cut the last blue wire.", when: (w) => count(w, "blue") > count(w, "red"), cut: (w) => lastOf(w, "blue") },
+    { say: "Cut the first wire.", when: () => true, cut: () => 0 },
+  ],
+  6: [
+    { say: "If there are no red wires, cut the fifth wire.", when: (w) => !count(w, "red"), cut: () => 4 },
+    { say: "If the last two wires are the same color, cut the last wire.", when: (w) => w[4] === w[5], cut: () => 5 },
+    { say: "If the serial ends in an even digit, cut the second wire.", when: (w, b) => !b.odd, cut: () => 1 },
+    { say: "Cut the third wire.", when: () => true, cut: () => 2 },
+  ],
+};
+// The big button. The first rule that is true says tap (press and let go at once) or hold.
+const BUTTON_COLORS = { red: "#d93a2f", blue: "#2f6fd9", yellow: "#f0bd22", white: "#e9ecef" };
+const BUTTON_WORDS = ["ABORT", "HOLD", "PRESS", "STOP"];
+const BUTTON_RULES = [
+  { say: "If the button is blue and says ABORT, hold it.", when: (b) => b.btn.color === "blue" && b.btn.word === "ABORT", hold: true },
+  { say: "If the button is red and says HOLD, tap it.", when: (b) => b.btn.color === "red" && b.btn.word === "HOLD", hold: false },
+  { say: "If the button is white and the serial ends odd, hold it.", when: (b) => b.btn.color === "white" && b.odd, hold: true },
+  { say: "If the button says STOP, tap it.", when: (b) => b.btn.word === "STOP", hold: false },
+  { say: "If the button is yellow, hold it.", when: (b) => b.btn.color === "yellow", hold: true },
+  { say: "Tap it.", when: () => true, hold: false },
+];
+// Holding: a strip lights up beside the button. Let go when the countdown shows this digit anywhere.
+const STRIP_DIGIT = { blue: 4, yellow: 5, red: 2, white: 1 };
+// The keypad. Exactly one column holds all four of the bomb's symbols: press them in that column's order.
+// [symbol, nickname]. Symbols are plain text characters, so no images are needed.
+const SYMBOLS = { "Ω": "horseshoe", "Ψ": "trident", "λ": "tent", "π": "table", "Σ": "zigzag", "Δ": "triangle", "Ж": "bug", "Ф": "lollipop",
+  "Я": "backwards R", "§": "snake", "¶": "flag", "©": "copyright", "¿": "upside-down ?", "∞": "eight", "‡": "dagger", "¥": "yen",
+  "€": "euro", "★": "star", "☆": "hollow star", "♠": "spade", "♣": "club", "♥": "heart", "♪": "note", "Þ": "thorn" };
+const KEY_COLUMNS = [
+  ["Ω", "Ψ", "λ", "★", "¶", "Ж"],
+  ["π", "Ω", "Σ", "♪", "Δ", "©"],
+  ["Ж", "¿", "∞", "Ψ", "♠", "‡"],
+  ["¥", "Δ", "€", "☆", "♣", "¿"],
+  ["Ф", "Я", "★", "♥", "€", "§"],
+  ["‡", "Þ", "♥", "λ", "©", "♣"],
+];
+// The mazes: 6×6, made from these seeds. Two green circles tell the mazes apart.
+const MAZE_SIZE = 6, MAZE_SEEDS = [1101, 2207, 3313, 4421], MAZE_NAMES = ["A", "B", "C", "D"];
+const DIRS = { U: [0, -1, "up"], D: [0, 1, "down"], L: [-1, 0, "left"], R: [1, 0, "right"] };
+
+// ── BOMB MAKER ──────────────────────────────────────────────────────────────────────
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const pickR = (r, a) => a[Math.floor(r() * a.length)];
+/** A maze: walls[y][x] = { r, d } (wall to the right, wall below), and two marker cells. */
+function makeMaze(seed) {
+  const r = mulberry32(seed), N = MAZE_SIZE, walls = Array.from({ length: N }, () => Array.from({ length: N }, () => ({ r: true, d: true })));
+  const seen = new Set(["0,0"]), stack = [[0, 0]];
+  while (stack.length) { // carve a path through every cell (depth-first)
+    const [x, y] = stack[stack.length - 1];
+    const next = Object.values(DIRS).map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => a >= 0 && b >= 0 && a < N && b < N && !seen.has(a + "," + b));
+    if (!next.length) { stack.pop(); continue; }
+    const [nx, ny] = pickR(r, next);
+    if (nx > x) walls[y][x].r = false; else if (nx < x) walls[y][nx].r = false; else if (ny > y) walls[y][x].d = false; else walls[ny][x].d = false;
+    seen.add(nx + "," + ny); stack.push([nx, ny]);
+  }
+  const m1 = [Math.floor(r() * N), Math.floor(r() * N)];
+  let m2; do m2 = [Math.floor(r() * N), Math.floor(r() * N)]; while (Math.abs(m2[0] - m1[0]) + Math.abs(m2[1] - m1[1]) < 3);
+  return { walls, marks: [m1, m2] };
+}
+const MAZES = MAZE_SEEDS.map(makeMaze);
+function canStep(maze, x, y, d) {
+  const [dx, dy] = DIRS[d], nx = x + dx, ny = y + dy;
+  if (nx < 0 || ny < 0 || nx >= MAZE_SIZE || ny >= MAZE_SIZE) return false;
+  if (dx === 1) return !maze.walls[y][x].r; if (dx === -1) return !maze.walls[y][nx].r;
+  if (dy === 1) return !maze.walls[y][x].d; return !maze.walls[ny][x].d;
+}
+/** Shortest list of steps ("U", "R", …) from a cell to the goal. */
+function mazePath(maze, from, to) {
+  const key = (p) => p[0] + "," + p[1], prev = new Map([[key(from), null]]), q = [from];
+  while (q.length) {
+    const p = q.shift();
+    if (key(p) === key(to)) break;
+    for (const d of Object.keys(DIRS)) if (canStep(maze, p[0], p[1], d)) { const n = [p[0] + DIRS[d][0], p[1] + DIRS[d][1]]; if (!prev.has(key(n))) { prev.set(key(n), [p, d]); q.push(n); } }
+  }
+  const out = []; let k = key(to);
+  while (prev.get(k)) { const [p, d] = prev.get(k); out.unshift(d); k = key(p); }
+  return out;
+}
+/** Everything on a bomb, from its seed. Every client with the seed builds the same bomb. */
+function makeBomb(seed, mods) {
+  const r = mulberry32(seed), L = "ABCDEFGHJKLMNPRSTUVWXZ";
+  const serial = pickR(r, L) + pickR(r, L) + Math.floor(r() * 10) + "-" + pickR(r, L) + Math.floor(r() * 10);
+  const b = { seed, mods, serial, odd: +serial[serial.length - 1] % 2 === 1 };
+  const nw = 3 + Math.floor(r() * 4);
+  b.wires = Array.from({ length: nw }, () => pickR(r, Object.keys(WIRE_COLORS)));
+  b.btn = { color: pickR(r, Object.keys(BUTTON_COLORS)), word: pickR(r, BUTTON_WORDS), strip: pickR(r, Object.keys(STRIP_DIGIT)) };
+  for (let tries = 0; ; tries++) { // four symbols that only one column holds all of
+    const col = Math.floor(r() * KEY_COLUMNS.length), syms = [...KEY_COLUMNS[col]];
+    for (let i = syms.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [syms[i], syms[j]] = [syms[j], syms[i]]; } // same order in every browser
+    syms.length = 4;
+    if (tries > 50 || KEY_COLUMNS.filter((c) => syms.every((s) => c.includes(s))).length === 1) { b.keys = { col, syms }; break; }
+  }
+  b.maze = { i: Math.floor(r() * MAZES.length) };
+  const m = MAZES[b.maze.i], cell = () => [Math.floor(r() * MAZE_SIZE), Math.floor(r() * MAZE_SIZE)];
+  b.maze.start = cell();
+  do b.maze.goal = cell(); while (mazePath(m, b.maze.start, b.maze.goal).length < 5);
+  return b;
+}
+const bombCache = new Map();
+const bombOf = (seed, mods) => { const k = seed + ":" + mods.join(); if (!bombCache.has(k)) bombCache.set(k, makeBomb(seed, mods)); return bombCache.get(k); };
+/** The answers: which rule applies (so Tock can read it) and what to do. */
+const wireRule = (b) => WIRE_RULES[b.wires.length].find((x) => x.when(b.wires, b));
+const wireToCut = (b) => wireRule(b).cut(b.wires, b);
+const buttonRule = (b) => BUTTON_RULES.find((x) => x.when(b));
+const keyOrder = (b) => KEY_COLUMNS[b.keys.col].filter((s) => b.keys.syms.includes(s)).map((s) => b.keys.syms.indexOf(s)); // key slots, in press order
+const freshProg = (b) => ({ cut: [], keys: [], pos: [...b.maze.start], holding: 0 });
+function levelOf(n) {
+  const L = CONFIG.levels, last = L[L.length - 1];
+  return n <= L.length ? L[n - 1] : { mods: last.mods, secs: Math.max(CONFIG.minSecs, last.secs - CONFIG.timeDrop * (n - L.length)) };
+}
+
+// ── CONNECTION ──────────────────────────────────────────────────────────────────────
+// The builder fills these in for this game. Downloaded from GitHub? Put your own pk_ key here.
+const MP_CONNECT = {
+  key: 'pk_REPLACE_ME',
+  room: 'bomb-defuse',
+  endpoint: 'wss://live.multiplayeragent.com',
+  apiUrl: 'https://api.multiplayeragent.com',
+};
+const ATTRACT = new URLSearchParams(location.search).has("attract");
+
+/** Same shape as the SDK client, kept in this tab: offline play and ?attract. */
+function localRoom() {
+  const id = "local", state = { entities: { players: { [id]: {} } }, shared: {} }, subs = [];
+  let queued = false;
+  const emit = () => { if (!queued) { queued = true; queueMicrotask(() => { queued = false; subs.forEach((f) => f(state)); }); } };
+  const put = (o, k, v) => { if (typeof k === "object") Object.assign(o, k); else o[k] = v; emit(); };
+  return {
+    sessionId: id, state, offline: true,
+    me: { set: (k, v) => put(state.entities.players[id], k, v) },
+    setShared: (k, v) => put(state.shared, k, v),
+    onState: (f) => { subs.push(f); f(state); }, onJoin() {}, onLeave() {}, on() {}, send() {},
+    onDisconnect() {}, onReconnect() {}, leave: async () => {},
+  };
+}
+async function connect() {
+  if (ATTRACT || typeof MP === "undefined") return localRoom();
+  try {
+    const mp = await Promise.race([MP.join({ ...MP_CONNECT }), new Promise((_, no) => setTimeout(() => no(new Error("timed out")), 10000))]);
+    window.mp = mp; // the builder calls window.mp.leave() when the page closes
+    return mp;
+  } catch (e) {
+    console.warn("Playing offline:", e && e.message);
+    return localRoom();
+  }
+}
+const parse = (v, fb) => { if (typeof v !== "string") return fb; try { return JSON.parse(v); } catch { return fb; } };
+const memo = new Map();
+/** A shared JSON field, parsed once per change (read-only: never mutate what this returns). */
+function shared(key, fb) {
+  const raw = S.shared[key], m = memo.get(key);
+  if (m && m.raw === raw) return m.v;
+  const v = parse(raw, fb);
+  memo.set(key, { raw, v });
+  return v;
+}
+let net = null, S = { entities: { players: {} }, shared: {} };
+const seenHb = new Map(); // sessionId -> { hb, at } on OUR clock
+/** Players whose heartbeat moved in the last 3s (plus us), sorted by sessionId. */
+function livePlayers() {
+  const now = performance.now(), out = [];
+  for (const [id, p] of Object.entries(S.entities.players || {})) {
+    const s = seenHb.get(id);
+    if (!s || s.hb !== p.hb) seenHb.set(id, { hb: p.hb, at: now });
+    if (id === net.sessionId || now - seenHb.get(id).at < 3000) out.push(id);
+  }
+  return out.sort();
+}
+let frameAt = 0, wokeAt = -1e9; // my loop's last frame, and when it last woke from a stall (a frozen or background tab)
+/** Never while my own loop is stalled, nor for 0.7s after it wakes: the room moved on without me, so the newer state lands first. */
+const isHost = () => livePlayers()[0] === net.sessionId && performance.now() - frameAt < 1000 && performance.now() - wokeAt > 700;
+const humans = () => livePlayers();
+/** Still in the room and heard from within CONFIG.leaveMs. */
+const stillHere = (id) => id === net.sessionId || (!!S.entities.players?.[id] && performance.now() - (seenHb.get(id)?.at ?? -1e9) < CONFIG.leaveMs);
+const nameOf = (id) => (id === "bot" ? CONFIG.botName : id === net.sessionId ? myName : String(S.entities.players?.[id]?.n ?? "Player")).slice(0, 14);
+const colorOf = (id) => (id === "bot" ? "#ffcf3f" : id === net.sessionId ? myColor : String(S.entities.players?.[id]?.c ?? "#ccc"));
+const pkOf = (id) => (id === net.sessionId ? Seal.pub : S.entities.players?.[id]?.pk);
+
+// ── SEALED SECRETS ──────────────────────────────────────────────────────────────────
+// Hidden info in a relay room. Everything in room state reaches every client, so a secret
+// (here: the bomb) is written SEALED: encrypted so only its one reader can open it. Each
+// player publishes a public key in its own entity (`pk`); the host seals the bomb to the
+// defuser's key and writes the box into shared state.
+//   - The host makes the bomb, so the host can read it. Fine for friends, not cheat-proof.
+//   - A new host can't open boxes the old host sealed. On a host change the defuser re-sends
+//     its bomb to the new host (sealed, with mp.send).
+//   - crypto.subtle needs https or localhost. Without it seal()/open() pass the value through.
+//   - NEVER plaintext online: with no key for the recipient, seal() returns "" (an empty box
+//     nobody can open). The host waits until the defuser has published `pk`.
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const Seal = {
+  pair: null,
+  pub: "",
+  keys: new Map(), // other player's public key -> derived AES key
+  get on() { return !!(window.crypto && crypto.subtle); },
+  /** Make this player's key pair. Returns the public key to publish: me.set("pk", pub). */
+  async init() {
+    if (!this.on) return "";
+    this.pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey"]);
+    this.pub = b64(await crypto.subtle.exportKey("raw", this.pair.publicKey));
+    return this.pub;
+  },
+  async key(otherPub) {
+    let k = this.keys.get(otherPub);
+    if (!k) {
+      const theirs = await crypto.subtle.importKey("raw", unb64(otherPub), { name: "ECDH", namedCurve: "P-256" }, false, []);
+      k = await crypto.subtle.deriveKey({ name: "ECDH", public: theirs }, this.pair.privateKey, { name: "AES-GCM", length: 128 }, false, ["encrypt", "decrypt"]);
+      this.keys.set(otherPub, k);
+    }
+    return k;
+  },
+  /** Seal any JSON value so only the holder of `toPub` (and you) can open it. */
+  async seal(toPub, value) {
+    if (!this.on) return "p:" + JSON.stringify(value);
+    if (!toPub || !this.pair) return ""; // never plaintext: nobody can open an empty box
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await this.key(toPub), new TextEncoder().encode(JSON.stringify(value)));
+    return b64(iv) + "." + b64(ct);
+  },
+  /** Open a box sealed by the player whose public key is `fromPub`. Null if it isn't for you. */
+  async open(fromPub, box) {
+    if (typeof box !== "string") return null;
+    if (box.startsWith("p:")) return JSON.parse(box.slice(2));
+    if (!this.on || !fromPub || !this.pair) return null;
+    try {
+      const [iv, ct] = box.split(".").map(unb64);
+      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, await this.key(fromPub), ct);
+      return JSON.parse(new TextDecoder().decode(pt));
+    } catch { return null; }
+  },
+};
+
+// ── GAME (HOST) ─────────────────────────────────────────────────────────────────────
+// What only the host keeps: the bomb's seed and progress (`secret`), Tock's reading plan, the chat.
+const host = { last: null, was: false, secret: null, boxDirty: false, sealing: false, bombOut: 0, bombV: 0, bot: null,
+  chat: { c: 0, l: [] }, graceUntil: 0, askedAt: 0 };
+
+const gameMemo = { raw: undefined, g: null };
+/** The game as state has it, or the host's own newer write that hasn't come back yet. */
+function game() {
+  if (gameMemo.raw !== S.shared.game) { gameMemo.raw = S.shared.game; gameMemo.g = parse(S.shared.game, null); }
+  const g = gameMemo.g;
+  return host.last && isHost() && (!g || host.last.v > g.v) ? host.last : g;
+}
+function writeGame(g) { g = { ...g, v: Math.max(game()?.v ?? 0, host.last?.v ?? 0) + 1 }; host.last = g; net.setShared("game", JSON.stringify(g)); return g; }
+const patch = (changes) => writeGame({ ...game(), ...changes });
+/** The bomb clock: ms left, running `rate` times faster than real time while armed. */
+const timeLeft = (g) => (g.ph === "armed" ? g.left - (Date.now() - g.clockAt) * g.rate : g.left);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+function newBrief(id, bomb, lvl, def, streak) {
+  const t = Date.now(), L = levelOf(lvl);
+  return { id, ph: "brief", at: t, endsAt: t + CONFIG.briefMs, bomb, lvl, def, mods: L.mods, left: L.secs * 1000, clockAt: t, rate: 1,
+    strikes: 0, solved: [], streak, why: "", hitAt: 0, hitMod: "", ready: [] };
+}
+/** The next defuser: the player after the last one (by sessionId), among players whose key we have. */
+function chooseDef(prev) {
+  const ok = humans().filter((id) => net.offline || !Seal.on || pkOf(id));
+  if (!ok.length) return "";
+  return ok.find((id) => id > prev) || ok[0];
+}
+
+function hostTick() {
+  if (!host.was) adopt();
+  const t = Date.now();
+  let g = game();
+  if (!g) g = writeGame(newBrief(1, 1, 1, chooseDef(""), 0));
+  if (g.ph === "brief") briefTick(g, t);
+  else if (g.ph === "armed") armedTick(g, t);
+  else if (g.ph === "defused" && t >= g.endsAt) writeGame(newBrief(g.id, g.bomb + 1, g.lvl + 1, chooseDef(g.def), g.streak));
+  else if (g.ph === "off" && t >= g.endsAt) writeGame(newBrief(g.id, g.bomb + 1, g.lvl, chooseDef(g.def), g.streak));
+  else if (g.ph === "boom" && t >= g.endsAt) writeGame(newBrief(g.id + 1, g.bomb + 1, 1, chooseDef(g.def), 0));
+  flushBox();
+}
+/** Before the clock starts: make sure the defuser is here, make the bomb, seal it to them. */
+function briefTick(g, t) {
+  if (!g.def || !stillHere(g.def) || (!net.offline && Seal.on && !pkOf(g.def))) {
+    const d = chooseDef(g.def);
+    if (d !== g.def) g = patch({ def: d });
+    if (!d) return;
+  }
+  if (!host.secret || host.secret.b !== g.bomb) {
+    const seed = (Math.random() * 2 ** 31) | 0;
+    host.secret = { b: g.bomb, seed, prog: freshProg(bombOf(seed, g.mods)) };
+    host.bot = null;
+  }
+  if (host.bombOut !== g.bomb || host.secret.to !== g.def) host.boxDirty = true; // not written yet, or sealed to someone else
+  if (t >= g.endsAt && host.bombOut === g.bomb && host.secret.to === g.def) {
+    patch({ ph: "armed", at: t, clockAt: t, rate: 1 });
+    sysChat(`${nameOf(g.def)} has the bomb. The clock is running!`);
+  }
+}
+function armedTick(g, t) {
+  if (timeLeft(g) <= 0) return boom(g, "time");
+  if (!stillHere(g.def)) {
+    sysChat(`${nameOf(g.def)} walked away. This bomb is called off.`);
+    return patch({ ph: "off", at: t, endsAt: t + CONFIG.offMs, left: timeLeft(g), clockAt: t });
+  }
+  if (!host.secret || host.secret.b !== g.bomb) { // a new host without the bomb: ask the defuser for it
+    if (!net.offline && performance.now() > host.askedAt + 2000) { host.askedAt = performance.now(); net.send("who", { b: g.bomb }); }
+    return;
+  }
+  if (performance.now() >= host.graceUntil) botTick(g, t);
+}
+function boom(g, why) {
+  const t = Date.now();
+  sysChat(why === "time" ? "Time ran out. BOOM." : "Three strikes. BOOM.");
+  patch({ ph: "boom", why, at: t, endsAt: t + CONFIG.overMs, left: Math.max(0, timeLeft(g)), clockAt: t, ready: [] });
+}
+
+/** The defuser did something to the bomb. Check it against the bomb; a mistake is a strike. */
+function onAct(from, a) {
+  const g = game(), s = host.secret;
+  if (!g || g.ph !== "armed" || from !== g.def || !s || s.b !== g.bomb || !a || a.b !== g.bomb) return;
+  if (!g.mods.includes(a.m) || g.solved.includes(a.m)) return;
+  const b = bombOf(s.seed, g.mods), p = s.prog;
+  let res = "";
+  if (a.m === "wires") {
+    const i = a.i | 0;
+    if (i < 0 || i >= b.wires.length || p.cut.includes(i)) return;
+    p.cut.push(i); res = i === wireToCut(b) ? "solved" : "strike";
+  } else if (a.m === "button") {
+    if (a.a === "down") { p.holding = 1; host.boxDirty = true; return; }
+    if (a.a !== "up") return;
+    p.holding = 0;
+    const held = +a.held >= CONFIG.holdMs, want = buttonRule(b).hold;
+    if (held !== want) res = "strike";
+    else if (!want) res = "solved";
+    else { // let go on the right digit? Trust the defuser's clock if it is close to ours.
+      const mine = fmtClock(timeLeft(g)), theirs = typeof a.t === "string" && Math.abs(clockSecs(a.t) - timeLeft(g) / 1000) < 2.5 ? a.t : mine;
+      res = theirs.includes(String(STRIP_DIGIT[b.btn.strip])) ? "solved" : "strike";
+    }
+  } else if (a.m === "keypad") {
+    const k = a.k | 0, order = keyOrder(b);
+    if (k < 0 || k > 3 || p.keys.includes(k)) return;
+    if (k === order[p.keys.length]) { p.keys.push(k); res = p.keys.length === 4 ? "solved" : "ok"; } else res = "strike";
+  } else if (a.m === "maze") {
+    if (!DIRS[a.d]) return;
+    const m = MAZES[b.maze.i];
+    if (!canStep(m, p.pos[0], p.pos[1], a.d)) res = "strike";
+    else { p.pos = [p.pos[0] + DIRS[a.d][0], p.pos[1] + DIRS[a.d][1]]; res = p.pos[0] === b.maze.goal[0] && p.pos[1] === b.maze.goal[1] ? "solved" : "ok"; }
+  }
+  host.boxDirty = true;
+  if (res === "strike") strike(g, a.m);
+  if (res === "solved") solve(g, a.m);
+}
+function strike(g, m) {
+  const t = Date.now(), strikes = g.strikes + 1, left = timeLeft(g);
+  const ng = patch({ strikes, left, clockAt: t, rate: 1 + strikes * CONFIG.strikeSpeedup, hitAt: t, hitMod: m });
+  if (strikes >= CONFIG.maxStrikes) boom(ng, "strikes");
+}
+function solve(g, m) {
+  const t = Date.now(), solved = [...g.solved, m];
+  if (solved.length < g.mods.length) return patch({ solved });
+  sysChat(`Defused with ${fmtClock(timeLeft(g))} left!`);
+  patch({ solved, ph: "defused", at: t, endsAt: t + CONFIG.defusedMs, left: timeLeft(g), clockAt: t, streak: g.streak + 1 });
+}
+/** Write the sealed `bomb` field when it changed. Never writes an empty box. */
+async function flushBox() {
+  if (host.sealing || !host.boxDirty) return;
+  const g = game(), s = host.secret;
+  if (!g || !s || s.b !== g.bomb || !g.def) return;
+  host.sealing = true; host.boxDirty = false;
+  try {
+    const to = g.def, box = await Seal.seal(pkOf(to), { b: s.b, seed: s.seed, prog: s.prog });
+    if (!box) { host.boxDirty = true; return; } // the defuser has no key yet: try again next frame
+    if (!isHost() || game()?.bomb !== s.b || host.secret !== s) return; // the room moved on while we sealed
+    const v = Math.max(host.bombV, shared("bomb", null)?.v ?? 0) + 1;
+    host.bombV = v; host.bombOut = s.b; s.to = to;
+    net.setShared("bomb", JSON.stringify({ b: s.b, v, pk: Seal.pub, box }));
+  } finally { host.sealing = false; }
+}
+
+/** Become host: carry on with the game exactly as state has it. The bomb comes back from the defuser. */
+function adopt() {
+  host.was = true; host.last = null; host.bot = null; host.secret = null; host.bombOut = 0;
+  host.bombV = shared("bomb", null)?.v ?? 0;
+  host.chat = shared("chat", null) || { c: 0, l: [] };
+  const g = game();
+  if (g && g.def === net.sessionId && mine && mine.b === g.bomb) host.secret = { b: mine.b, seed: mine.seed, prog: JSON.parse(JSON.stringify(mine.prog)) };
+  host.graceUntil = performance.now() + (g && g.ph === "armed" ? CONFIG.rejoinMs : 0);
+  host.askedAt = -1e9;
+}
+/** The defuser re-sent its bomb to me (the new host). */
+function learnBomb(from, v) {
+  const g = game();
+  if (!g || from !== g.def || !v || v.b !== g.bomb || (host.secret && host.secret.b === g.bomb)) return;
+  host.secret = { b: v.b, seed: v.seed, prog: v.prog, to: g.def };
+  host.bombOut = v.b; host.boxDirty = true;
+}
+
+function onChat(from, msg) {
+  if (!msg || typeof msg.t !== "string") return;
+  const text = msg.t.replace(/\s+/g, " ").trim().slice(0, CONFIG.chatMax);
+  if (text) addChat(from, text);
+}
+function addChat(id, text) {
+  host.chat = { c: host.chat.c + 1, l: [...host.chat.l, [id, text]].slice(-CONFIG.chatLines) };
+  net.setShared("chat", JSON.stringify(host.chat));
+}
+const sysChat = (text) => addChat("", text);
+function onReady(from) {
+  const g = game();
+  if (!g || g.ph !== "boom" || g.ready.includes(from)) return;
+  const ready = [...g.ready, from], all = humans().every((id) => ready.includes(id));
+  patch({ ready, endsAt: all ? Math.min(g.endsAt, Date.now() + 1200) : g.endsAt });
+}
+const HANDLERS = { act: onAct, chat: onChat, ready: onReady };
+/** Ask the host to do something. The host's own intents run right here (mp.send never echoes). */
+function toHost(type, msg) { if (isHost()) HANDLERS[type](net.sessionId, msg); else net.send(type, msg); }
+
+// ── BOT (HOST) ──────────────────────────────────────────────────────────────────────
+// Tock reads the manual to a defuser who is alone (or in ?attract). It reads the page for the
+// first unsolved module: what it heard you have, then the rule that applies.
+const soloRoom = () => ATTRACT || humans().length <= 1;
+function botTick(g, t) {
+  if (!soloRoom()) return;
+  const s = host.secret, b = bombOf(s.seed, g.mods), focus = g.mods.find((m) => !g.solved.includes(m));
+  if (!focus) return;
+  let bot = host.bot;
+  if (!bot || bot.b !== g.bomb) bot = host.bot = { b: g.bomb, focus: "", step: 0, next: t + 1400, pos: "", hold: false, keys: 0 };
+  if (focus !== bot.focus) { Object.assign(bot, { focus, step: 0, next: Math.max(bot.next, t + rnd(...CONFIG.botLineMs) * 0.4) }); }
+  if (focus === "button" && s.prog.holding && !bot.hold) { bot.hold = true; bot.next = t + 500; }
+  if (focus === "button" && !s.prog.holding) bot.hold = false;
+  const posKey = s.prog.pos.join() + ":" + s.prog.keys.length;
+  if (bot.step >= 2 && posKey !== bot.pos) { bot.pos = posKey; bot.next = Math.min(bot.next, t + rnd(...CONFIG.botLineMs) * 0.45); }
+  if (t < bot.next) return;
+  const line = botSays(focus, b, s.prog, bot);
+  bot.step++; bot.pos = posKey;
+  bot.next = t + (bot.step >= 2 ? CONFIG.botRepeatMs : rnd(...CONFIG.botLineMs));
+  if (line) addChat("bot", line);
+}
+const dirWords = (ds) => ds.map((d) => DIRS[d][2]).join(", ");
+function botSays(focus, b, p, bot) {
+  const again = bot.step >= 2 ? "Again: " : "";
+  if (focus === "wires") return bot.step === 0 ? `Wires! You've got ${b.wires.length}. Page "${b.wires.length} wires" says…` : again + wireRule(b).say;
+  if (focus === "button") {
+    if (bot.hold && p.holding) return `Strip is ${b.btn.strip}? Let go when the timer shows a ${STRIP_DIGIT[b.btn.strip]}.`;
+    return bot.step === 0 ? `The button: ${b.btn.color}, says ${b.btn.word}. Hmm…` : again + buttonRule(b).say;
+  }
+  if (focus === "keypad") {
+    if (bot.step === 0) return `Keypad. All four symbols are in column ${b.keys.col + 1}.`;
+    const rest = keyOrder(b).slice(p.keys.length).map((k) => `${b.keys.syms[k]} (${SYMBOLS[b.keys.syms[k]]})`);
+    return `Press, in order: ${rest.join(" → ")}`;
+  }
+  if (focus === "maze") {
+    if (bot.step === 0) return `Maze! Your green circles match maze ${MAZE_NAMES[b.maze.i]}.`;
+    const path = mazePath(MAZES[b.maze.i], p.pos, b.maze.goal).slice(0, 3);
+    return path.length ? `Go ${dirWords(path)}.` : "";
+  }
+  return "";
+}
+/** ?attract: the local player defuses on autopilot, a beat after Tock reads each rule. */
+const auto = { next: 0, holdAt: 0 };
+function autopilot(g, now) {
+  if (!ATTRACT || g.ph !== "armed" || !host.secret || now < auto.next) return;
+  const s = host.secret, b = bombOf(s.seed, g.mods), p = s.prog, focus = g.mods.find((m) => !g.solved.includes(m));
+  if (!focus || !host.bot || host.bot.focus !== focus || host.bot.step < 2) return;
+  auto.next = now + rnd(380, 720);
+  const slip = Math.random() < 0.12; // a fumble now and then: a strike makes good video
+  if (focus === "wires") { const right = wireToCut(b), wrong = b.wires.map((_, i) => i).filter((i) => i !== right && !p.cut.includes(i)); act({ m: "wires", i: slip && wrong.length ? pick(wrong) : right }); }
+  if (focus === "keypad") { const next = keyOrder(b)[p.keys.length], other = [0, 1, 2, 3].filter((k) => !p.keys.includes(k) && k !== next); pressKey(slip && other.length ? pick(other) : next); }
+  if (focus === "maze") {
+    const path = mazePath(MAZES[b.maze.i], p.pos, b.maze.goal), wall = Object.keys(DIRS).find((d) => !canStep(MAZES[b.maze.i], p.pos[0], p.pos[1], d));
+    if (path.length) step(slip && wall ? wall : path[0]);
+  }
+  if (focus === "button") {
+    if (!buttonRule(b).hold) { pressButton(); auto.holdAt = now; setTimeout(() => releaseButton(), 150); }
+    else if (!holdStart) { pressButton(); auto.holdAt = now; }
+    else if (now - auto.holdAt > CONFIG.holdMs && fmtClock(timeLeft(g)).includes(String(STRIP_DIGIT[b.btn.strip]))) releaseButton();
+  }
+}
+
+// ── ME ──────────────────────────────────────────────────────────────────────────────
+let myName = "", myColor = COLORS[0], dropped = false;
+try { myName = localStorage.getItem("mpa-name") || ""; } catch {}
+if (!myName) myName = pick(FRIENDLY) + " " + (10 + Math.floor(Math.random() * 90));
+let mine = null, bombRaw = null, opening = false; // my opened bomb: { b, seed, prog }
+let holdStart = 0;                                  // when I pressed the button (0 = not holding)
+const amDefuser = (g) => !!g && g.def === net.sessionId && ["brief", "armed", "defused", "boom", "off"].includes(g.ph);
+/** My bomb as I can see it: the host's live copy if I run the room, else the last box I opened. */
+function myBomb(g) {
+  if (!amDefuser(g)) return null;
+  const s = isHost() && host.secret && host.secret.b === g.bomb ? host.secret : mine && mine.b === g.bomb ? mine : null;
+  return s ? { s, b: bombOf(s.seed, g.mods), p: s.prog } : null;
+}
+function openBomb(g) {
+  const raw = S.shared.bomb;
+  if (raw === bombRaw || opening) return;
+  const R = parse(raw, null);
+  if (!R || !R.box || R.b !== g.bomb || g.def !== net.sessionId) { bombRaw = raw; return; }
+  opening = true;
+  Seal.open(R.pk, R.box).then((v) => { if (v && v.b === R.b) mine = v; bombRaw = raw; }).finally(() => { opening = false; });
+}
+function act(a) {
+  const g = game();
+  if (!g || g.ph !== "armed" || !amDefuser(g)) return;
+  toHost("act", { ...a, b: g.bomb });
+}
+function pressButton() {
+  const g = game(), mb = myBomb(g);
+  if (!mb || g.ph !== "armed" || g.solved.includes("button") || !g.mods.includes("button") || holdStart) return;
+  holdStart = performance.now(); act({ m: "button", a: "down" }); tone(180, 80, "square", 0.04);
+}
+function releaseButton() {
+  if (!holdStart) return;
+  const g = game(), held = performance.now() - holdStart;
+  holdStart = 0;
+  if (g) act({ m: "button", a: "up", held: Math.round(held), t: fmtClock(timeLeft(g)) });
+  tone(260, 70, "square", 0.04);
+}
+function pressKey(k) { act({ m: "keypad", k }); keyAt.set(k, performance.now()); tone(700, 50, "square", 0.03); }
+function step(d) { act({ m: "maze", d }); tone(520, 35, "triangle", 0.03); }
+/** When the host changes, hand my bomb to the new one, sealed. */
+let lastHost = "";
+function watchHost() {
+  const h = livePlayers()[0];
+  if (h === lastHost) return;
+  lastHost = h;
+  if (h && h !== net.sessionId) resendBomb(h);
+}
+async function resendBomb(to) {
+  const g = game(), pk = pkOf(to);
+  if (!g || !pk || !mine || mine.b !== g.bomb || g.def !== net.sessionId || net.offline) return;
+  net.send("role", { to, box: await Seal.seal(pk, mine) });
+}
+
+// ── DRAW ────────────────────────────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const cv = $("game"), ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1, WIDE = false;
+const MAIN = { x: 0, y: 0, w: 0, h: 0 };  // where the bomb (or the manual) goes
+let BOMB_AT = null, MANUAL_AT = null;     // attract shows both side by side
+/** Size everything from the viewport: the chat goes right (wide) or at the bottom (tall). */
+function fit() {
+  DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  WIDE = W >= 760 && W > H * 1.1;
+  const side = $("side"), defuser = amDefuser(game()), top = 44;
+  if (ATTRACT) Object.assign(MAIN, { x: 0, y: 0, w: W, h: H });
+  else if (WIDE) {
+    const sw = Math.round(Math.min(340, W * 0.32));
+    side.className = "right"; Object.assign(side.style, { left: W - sw + "px", top: "0px", width: sw + "px", height: H + "px" });
+    Object.assign(MAIN, { x: 0, y: top, w: W - sw, h: H - top - 22 });
+  } else {
+    const sh = Math.round(defuser ? Math.max(190, Math.min(240, H * 0.28)) : Math.max(210, Math.min(290, H * 0.36)));
+    side.className = "bottom"; Object.assign(side.style, { left: "0px", top: H - sh + "px", width: W + "px", height: sh + "px" });
+    Object.assign(MAIN, { x: 0, y: top, w: W, h: H - sh - top - 20 });
+  }
+  $("net").style.bottom = !ATTRACT && !WIDE ? H - parseFloat(side.style.top) + 4 + "px" : "";
+  if (ATTRACT) { const bw = Math.round(W * 0.56); BOMB_AT = { x: 0, y: 0, w: bw, h: H }; MANUAL_AT = { x: bw, y: 0, w: W - bw, h: H }; }
+  else { BOMB_AT = { ...MAIN }; MANUAL_AT = { ...MAIN }; }
+  Object.assign($("manual").style, { left: MANUAL_AT.x + "px", top: MANUAL_AT.y + "px", width: MANUAL_AT.w + "px", height: MANUAL_AT.h + "px" });
+  $("msg").style.top = MAIN.y + MAIN.h * 0.36 + "px";
+  if (ATTRACT) Object.assign($("msg").style, { left: "0px", right: W - BOMB_AT.w + "px" });
+}
+addEventListener("resize", fit); addEventListener("orientationchange", fit);
+
+const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+const circle = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, Math.max(0.1, r), 0, Math.PI * 2); };
+const ease = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
+let HITS = [];                  // this frame's tappable parts of the bomb: {m, k, x, y, w, h}
+const keyAt = new Map(), solvedAt = new Map(); // effect start times
+let flashUntil = 0, flashColor = "#ff2a1f", shakeUntil = 0;
+
+function drawBench() {
+  ctx.save();
+  if (ATTRACT) { ctx.clearRect(0, 0, W, H); ctx.beginPath(); ctx.rect(BOMB_AT.x, BOMB_AT.y, BOMB_AT.w, BOMB_AT.h); ctx.clip(); } // the manual shows through on the right
+  ctx.fillStyle = "#151a21"; ctx.fillRect(0, 0, W, H);
+  const gr = ctx.createRadialGradient(BOMB_AT.x + BOMB_AT.w / 2, BOMB_AT.y + BOMB_AT.h / 2, 30, BOMB_AT.x + BOMB_AT.w / 2, BOMB_AT.y + BOMB_AT.h / 2, Math.max(W, H) * 0.7);
+  gr.addColorStop(0, "#36404d"); gr.addColorStop(1, "#11151b"); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "#ffffff08"; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  ctx.restore();
+}
+/** The bomb case: timer, strike lights, serial sticker and four module slots. */
+function drawBomb(g, mb, now) {
+  const A = BOMB_AT, pad = Math.max(10, Math.min(A.w, A.h) * 0.03);
+  const bw = Math.min(A.w - pad * 2, (A.h - pad * 2) * 1.5), bh = Math.min(A.h - pad * 2, bw * 1.45);
+  const x = A.x + (A.w - bw) / 2, y = A.y + (A.h - bh) / 2;
+  HITS = [];
+  const case_ = ctx.createLinearGradient(x, y, x, y + bh);
+  case_.addColorStop(0, "#5b6573"); case_.addColorStop(1, "#353c46");
+  ctx.fillStyle = "#0008"; rr(x + 4, y + 8, bw, bh, 18); ctx.fill();
+  ctx.fillStyle = case_; rr(x, y, bw, bh, 18); ctx.fill();
+  ctx.strokeStyle = "#8994a3"; ctx.lineWidth = 2; rr(x + 1, y + 1, bw - 2, bh - 2, 17); ctx.stroke();
+  for (const [sx, sy] of [[x + 12, y + 12], [x + bw - 12, y + 12], [x + 12, y + bh - 12], [x + bw - 12, y + bh - 12]]) { ctx.fillStyle = "#9aa4b1"; circle(sx, sy, 5); ctx.fill(); ctx.strokeStyle = "#4a525d"; ctx.beginPath(); ctx.moveTo(sx - 3, sy); ctx.lineTo(sx + 3, sy); ctx.stroke(); }
+  // the top bar: timer, strikes, serial
+  const tb = Math.max(46, Math.min(78, bh * 0.14)), ty = y + pad * 0.9;
+  const tw = Math.min(bw * 0.36, tb * 2.6), tx = x + pad * 1.6;
+  ctx.fillStyle = "#07090b"; rr(tx, ty, tw, tb, 8); ctx.fill();
+  const left = timeLeft(g), str = fmtClock(left), low = g.ph === "armed" && left < 30000;
+  ctx.font = `800 ${Math.round(tb * 0.66)}px ui-monospace, Consolas, monospace`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "#2a0a08"; ctx.fillText("8:88", tx + tw / 2, ty + tb / 2 + 2);
+  const blink = low && Math.floor(now / 250) % 2 === 0;
+  ctx.fillStyle = blink ? "#ffd0c8" : "#ff3b2e"; ctx.shadowColor = "#ff3b2e"; ctx.shadowBlur = 14;
+  ctx.fillText(str, tx + tw / 2, ty + tb / 2 + 2); ctx.shadowBlur = 0;
+  if (g.rate > 1) { ctx.font = "800 11px system-ui, sans-serif"; ctx.fillStyle = "#ffb3aa"; ctx.textAlign = "left"; ctx.fillText(`×${g.rate.toFixed(2)}`, tx + 6, ty + 11); }
+  const sw = Math.min(bw * 0.3, tb * 2.4), stx = x + bw - pad * 1.6 - sw;
+  const gapW = stx - tx - tw, ls = Math.min(tb * 0.48, gapW / (CONFIG.maxStrikes + 0.4)), lr = Math.min(tb * 0.19, ls * 0.42), sx0 = tx + tw + (gapW - ls * (CONFIG.maxStrikes - 1)) / 2;
+  for (let i = 0; i < CONFIG.maxStrikes; i++) { // the strike lights, between the timer and the sticker
+    const on = i < g.strikes, cx = sx0 + i * ls, cy = ty + tb / 2;
+    ctx.fillStyle = "#1a1d22"; circle(cx, cy, lr); ctx.fill();
+    ctx.fillStyle = on ? "#ff3b2e" : "#3b2422"; if (on) { ctx.shadowColor = "#ff3b2e"; ctx.shadowBlur = 12; }
+    circle(cx, cy, lr * 0.7); ctx.fill(); ctx.shadowBlur = 0;
+    if (on) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - 4, cy - 4); ctx.lineTo(cx + 4, cy + 4); ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx - 4, cy + 4); ctx.stroke(); }
+  }
+  ctx.save(); ctx.translate(stx + sw / 2, ty + tb / 2); ctx.rotate(-0.03);
+  ctx.fillStyle = "#f4f1e8"; rr(-sw / 2, -tb * 0.42, sw, tb * 0.84, 4); ctx.fill();
+  ctx.fillStyle = "#8a2a1e"; ctx.font = `800 ${Math.round(tb * 0.17)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.fillText("SERIAL NO.", 0, -tb * 0.2);
+  ctx.fillStyle = "#1a1a1a"; ctx.font = `800 ${Math.round(tb * 0.34)}px ui-monospace, Consolas, monospace`; ctx.fillText(mb ? mb.b.serial : "?????", 0, tb * 0.14);
+  ctx.restore();
+  // the module slots: 2×2
+  const gy = ty + tb + pad, gh = y + bh - pad * 1.2 - gy, gap = pad * 0.8, cw = (bw - pad * 3.2 - gap) / 2, ch = (gh - gap) / 2;
+  const slots = ["wires", "keypad", "maze", "button"];
+  slots.forEach((m, i) => {
+    const mx = x + pad * 1.6 + (i % 2) * (cw + gap), my = gy + Math.floor(i / 2) * (ch + gap);
+    const hit = g.hitMod === m && Date.now() - g.hitAt < 500 ? Math.sin(now / 20) * 4 : 0;
+    ctx.save(); ctx.translate(hit, 0);
+    drawSlot(g, mb, m, mx, my, cw, ch, now);
+    ctx.restore();
+  });
+}
+function drawSlot(g, mb, m, x, y, w, h, now) {
+  const on = g.mods.includes(m), solved = g.solved.includes(m);
+  ctx.fillStyle = "#1e242c"; rr(x, y, w, h, 10); ctx.fill();
+  ctx.fillStyle = on ? "#2b333d" : "#3a424d"; rr(x + 3, y + 3, w - 6, h - 6, 8); ctx.fill();
+  if (!on) { // a blank plate
+    ctx.fillStyle = "#58616d"; for (const [a, b] of [[0.12, 0.14], [0.88, 0.14], [0.12, 0.86], [0.88, 0.86]]) { circle(x + w * a, y + h * b, 4); ctx.fill(); }
+    ctx.fillStyle = "#ffffff18"; ctx.font = `800 ${Math.round(Math.min(w, h) * 0.14)}px system-ui`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("· · ·", x + w / 2, y + h / 2);
+    return;
+  }
+  if (mb) ({ wires: drawWires, button: drawButton, keypad: drawKeypad, maze: drawMaze })[m](g, mb, x, y, w, h, now, solved);
+  // the status light, top-right: green when solved, red flash on a strike
+  const hitNow = g.hitMod === m && Date.now() - g.hitAt < 900, lx = x + w - 14, ly = y + 14;
+  ctx.fillStyle = "#0b0d10"; circle(lx, ly, 8); ctx.fill();
+  ctx.fillStyle = solved ? "#3ee08a" : hitNow ? "#ff3b2e" : "#3a2b2b"; if (solved || hitNow) { ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 14; }
+  circle(lx, ly, 5.5); ctx.fill(); ctx.shadowBlur = 0;
+  if (solved) { const t = ease((now - (solvedAt.get(m) ?? -1e9)) / 400); ctx.fillStyle = `rgba(62,224,138,${0.12 * t})`; rr(x, y, w, h, 10); ctx.fill(); }
+}
+function drawWires(g, mb, x, y, w, h, now, solved) {
+  const { b, p } = mb, n = b.wires.length, x0 = x + w * 0.12, x1 = x + w * 0.88, top = y + h * 0.17, sp = (h * 0.76) / n;
+  const lw = Math.max(5, Math.min(13, sp * 0.3));
+  for (let i = 0; i < n; i++) {
+    const wy = top + sp * (i + 0.5), sag = sp * 0.4 * (((b.seed >> i) & 1) ? 1 : -0.7), col = WIRE_COLORS[b.wires[i]], cut = p.cut.includes(i);
+    ctx.fillStyle = "#9aa4b1"; rr(x0 - 9, wy - 6, 9, 12, 2); ctx.fill(); rr(x1, wy - 6, 9, 12, 2); ctx.fill();
+    const path = () => { ctx.beginPath(); ctx.moveTo(x0, wy); ctx.bezierCurveTo(x0 + (x1 - x0) * 0.33, wy + sag, x0 + (x1 - x0) * 0.66, wy + sag, x1, wy); };
+    const strokeWire = () => { path(); ctx.lineCap = "round"; ctx.strokeStyle = b.wires[i] === "black" ? "#5a5f68" : "#0009"; ctx.lineWidth = lw + 3; ctx.stroke(); path(); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.stroke(); path(); ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = lw * 0.3; ctx.stroke(); };
+    if (!cut) strokeWire();
+    else { // two halves with a gap and copper ends
+      const mid = (x0 + x1) / 2, gapW = w * 0.09;
+      for (const [a, c] of [[x - 10, mid - gapW], [mid + gapW, x + w + 10]]) { ctx.save(); ctx.beginPath(); ctx.rect(a, y, c - a, h); ctx.clip(); strokeWire(); ctx.restore(); }
+      ctx.fillStyle = "#e08a3c"; circle(mid - gapW, wy + sag * 0.75, lw * 0.35); ctx.fill(); circle(mid + gapW, wy + sag * 0.75, lw * 0.35); ctx.fill();
+    }
+    if (!cut && !solved) HITS.push({ m: "wires", k: i, x: x0 + (x1 - x0) * 0.1, y: wy + sag * 0.6 - sp / 2, w: (x1 - x0) * 0.8, h: sp });
+  }
+}
+function drawButton(g, mb, x, y, w, h, now, solved) {
+  const { b } = mb, r = Math.min(w * 0.3, h * 0.34), cx = x + w * 0.4, cy = y + h * 0.55;
+  const holding = holdStart && !solved, held = holding ? performance.now() - holdStart : 0, press = holding ? 3 : 0;
+  ctx.fillStyle = "#11151a"; circle(cx, cy + 5, r * 1.12); ctx.fill();
+  ctx.fillStyle = "#0007"; circle(cx, cy + 6 - press, r); ctx.fill();
+  ctx.fillStyle = BUTTON_COLORS[b.btn.color]; circle(cx, cy + press, r); ctx.fill();
+  const gr = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35 + press, r * 0.05, cx - r * 0.1, cy - r * 0.1 + press, r);
+  gr.addColorStop(0, "rgba(255,255,255,.55)"); gr.addColorStop(0.5, "rgba(255,255,255,0)"); gr.addColorStop(1, "rgba(0,0,0,.25)");
+  ctx.fillStyle = gr; circle(cx, cy + press, r); ctx.fill();
+  ctx.fillStyle = b.btn.color === "white" || b.btn.color === "yellow" ? "#1d1d1d" : "#fff";
+  ctx.font = `900 ${Math.round(r * 0.36)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(b.btn.word, cx, cy + press + 1);
+  const sx = x + w * 0.8, sy = y + h * 0.22, sw2 = Math.max(10, w * 0.09), sh = h * 0.66, lit = held > CONFIG.holdMs;
+  ctx.fillStyle = "#0b0d10"; rr(sx - 3, sy - 3, sw2 + 6, sh + 6, 6); ctx.fill();
+  ctx.fillStyle = lit ? BUTTON_COLORS[b.btn.strip] : "#22262c"; if (lit) { ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 16 + 6 * Math.sin(now / 120); }
+  rr(sx, sy, sw2, sh, 4); ctx.fill(); ctx.shadowBlur = 0;
+  if (!solved) HITS.push({ m: "button", k: 0, x: cx - r, y: cy - r, w: r * 2, h: r * 2 });
+}
+function drawKeypad(g, mb, x, y, w, h, now, solved) {
+  const { b, p } = mb, k = Math.min((w * 0.8) / 2, (h * 0.78) / 2), gx = x + (w - k * 2 - 8) / 2, gy = y + h * 0.16;
+  for (let i = 0; i < 4; i++) {
+    const kx = gx + (i % 2) * (k + 8), ky = gy + Math.floor(i / 2) * (k + 6), done = p.keys.includes(i), age = now - (keyAt.get(i) ?? -1e9), dn = age < 120 ? 2 : 0;
+    ctx.fillStyle = "#0b0d10"; rr(kx, ky + 3, k, k - 2, 7); ctx.fill();
+    ctx.fillStyle = done ? "#d5f5df" : "#ece3cb"; rr(kx, ky + dn, k, k - 6, 7); ctx.fill();
+    ctx.fillStyle = done ? "#3ee08a" : "#3a2f2a"; rr(kx + k * 0.3, ky + dn + 5, k * 0.4, 5, 2); ctx.fill();
+    ctx.fillStyle = "#1c1814"; ctx.font = `700 ${Math.round(k * 0.48)}px "Segoe UI Symbol", "DejaVu Sans", system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(b.keys.syms[i], kx + k / 2, ky + dn + k * 0.56);
+    if (!done && !solved) HITS.push({ m: "keypad", k: i, x: kx, y: ky, w: k, h: k });
+  }
+}
+function drawMaze(g, mb, x, y, w, h, now, solved) {
+  const { b, p } = mb, a = Math.max(30, Math.min(44, Math.min(w, h) * 0.17)), s = Math.min(w - a * 2 - 14, h - a * 2 - 10), cell = s / MAZE_SIZE;
+  const gx = x + (w - s) / 2, gy = y + (h - s) / 2, m = MAZES[b.maze.i];
+  ctx.fillStyle = "#0c1712"; rr(gx - 4, gy - 4, s + 8, s + 8, 6); ctx.fill();
+  const c = (cx, cy) => [gx + (cx + 0.5) * cell, gy + (cy + 0.5) * cell];
+  for (let yy = 0; yy < MAZE_SIZE; yy++) for (let xx = 0; xx < MAZE_SIZE; xx++) { const [px, py] = c(xx, yy); ctx.fillStyle = "#2f5a44"; circle(px, py, Math.max(1.5, cell * 0.08)); ctx.fill(); }
+  for (const mk of m.marks) { const [px, py] = c(mk[0], mk[1]); ctx.strokeStyle = "#3ee08a"; ctx.lineWidth = Math.max(2, cell * 0.1); circle(px, py, cell * 0.36); ctx.stroke(); }
+  const [qx, qy] = c(b.maze.goal[0], b.maze.goal[1]), tr = cell * 0.32;
+  ctx.fillStyle = "#ff4b3e"; ctx.beginPath(); ctx.moveTo(qx, qy - tr); ctx.lineTo(qx + tr, qy + tr * 0.8); ctx.lineTo(qx - tr, qy + tr * 0.8); ctx.fill();
+  const [ux, uy] = c(p.pos[0], p.pos[1]); ctx.fillStyle = "#fff"; ctx.shadowColor = "#fff"; ctx.shadowBlur = 10; rr(ux - cell * 0.24, uy - cell * 0.24, cell * 0.48, cell * 0.48, 3); ctx.fill(); ctx.shadowBlur = 0;
+  if (solved) return;
+  HITS.push({ m: "mazegrid", k: 0, x: gx, y: gy, w: s, h: s, ux, uy });
+  for (const [d, ax, ay, rot] of [["U", gx + s / 2, gy - a / 2 - 5, 0], ["D", gx + s / 2, gy + s + a / 2 + 5, Math.PI], ["L", gx - a / 2 - 7, gy + s / 2, -Math.PI / 2], ["R", gx + s + a / 2 + 7, gy + s / 2, Math.PI / 2]]) {
+    ctx.save(); ctx.translate(ax, ay); ctx.rotate(rot);
+    ctx.fillStyle = "#4a5361"; rr(-a / 2, -a / 2, a, a, 6); ctx.fill();
+    ctx.fillStyle = "#dfe6ee"; ctx.beginPath(); ctx.moveTo(0, -a * 0.25); ctx.lineTo(a * 0.25, a * 0.18); ctx.lineTo(-a * 0.25, a * 0.18); ctx.fill();
+    ctx.restore();
+    HITS.push({ m: "maze", k: d, x: ax - a / 2, y: ay - a / 2, w: a, h: a });
+  }
+}
+/** Experts see the bomb only as a silhouette: the case and its lights, never what's on it. */
+const parts = [];
+function burst(x, y, colors, n, speed = 260, grav = 260) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = rnd(40, speed); parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, life: 1, color: pick(colors), r: rnd(2, 5), g: grav, spin: Math.random() * 6 }); } }
+function drawParticles(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.life -= dt * 0.8; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.vx *= Math.exp(-dt * 1.2);
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.min(1, p.life * 1.5); ctx.fillStyle = p.color;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.spin * p.life); ctx.fillRect(-p.r, -p.r * 0.6, p.r * 2, p.r * 1.2); ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+/** ?attract only: the last chat line as a speech bubble under the bomb. */
+function drawBubble(now) {
+  const c = shared("chat", null), line = c && c.l[c.l.length - 1];
+  if (!line || !line[0]) return;
+  const text = `${nameOf(line[0])}: ${line[1]}`;
+  ctx.font = "700 15px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  const max = BOMB_AT.w - 64, lines = [""];
+  for (const w of text.split(" ")) { const t = lines[lines.length - 1] ? lines[lines.length - 1] + " " + w : w; if (ctx.measureText(t).width > max && lines[lines.length - 1]) lines.push(w); else lines[lines.length - 1] = t; }
+  const ls = lines.slice(0, 2), tw = Math.max(...ls.map((l) => ctx.measureText(l).width)) + 24, bh = 14 + ls.length * 19, bx = BOMB_AT.x + (BOMB_AT.w - tw) / 2, by = BOMB_AT.y + BOMB_AT.h - bh - 10;
+  ctx.fillStyle = "#fffdf3"; rr(bx, by, tw, bh, 12); ctx.fill();
+  ctx.fillStyle = "#2a2418"; ls.forEach((l, i) => ctx.fillText(l, bx + 12, by + 17 + i * 19));
+}
+function draw(g, now, dt) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const mb = myBomb(g), showBomb = !!g && (ATTRACT || amDefuser(g));
+  if (showBomb) {
+    drawBench();
+    ctx.save(); if (now < shakeUntil) ctx.translate(Math.sin(now / 17) * 6, Math.cos(now / 23) * 5);
+    if (g.ph === "boom") drawRubble(g, now); else if (mb || g.ph === "brief") drawBomb(g, mb, now);
+    ctx.restore();
+    if (ATTRACT) drawBubble(now);
+  } else { ctx.clearRect(0, 0, W, H); HITS = []; }
+  drawParticles(dt);
+  if (now < flashUntil) { ctx.globalAlpha = Math.min(0.55, (flashUntil - now) / 600); ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+}
+/** After a boom: scorch and smoke where the bomb was. */
+function drawRubble(g, now) {
+  const A = BOMB_AT, cx = A.x + A.w / 2, cy = A.y + A.h / 2, t = (now - phaseAt) / 1000;
+  const gr = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.min(A.w, A.h) * 0.5);
+  gr.addColorStop(0, "#000"); gr.addColorStop(0.6, "#1a0f0a"); gr.addColorStop(1, "rgba(20,10,5,0)"); ctx.fillStyle = gr; circle(cx, cy, Math.min(A.w, A.h) * 0.5); ctx.fill();
+  for (let i = 0; i < 9; i++) { const a = i * 0.7 + t * 0.2, r = 40 + ((i * 37) % 60) + t * 12; ctx.fillStyle = `rgba(90,90,96,${Math.max(0, 0.35 - t * 0.03)})`; circle(cx + Math.cos(a) * r, cy - t * 20 + Math.sin(a) * r * 0.5, 30 + i * 3); ctx.fill(); }
+}
+
+// ── SCREENS ─────────────────────────────────────────────────────────────────────────
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const secs = (ms) => Math.max(0, Math.ceil(ms / 1000));
+function fmtClock(ms) { const s = secs(ms); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+const clockSecs = (str) => { const [m, s] = String(str).split(":").map(Number); return (m || 0) * 60 + (s || 0); };
+const MOD_NAMES = { wires: "Wires", button: "The Button", keypad: "Keypad", maze: "Maze" };
+let AC = null;
+function unlockAudio() { if (!AC && !ATTRACT) try { AC = new AudioContext(); } catch {} }
+function tone(f, ms, type = "sine", vol = 0.05, f2 = 0) {
+  if (!AC) return;
+  const o = AC.createOscillator(), gn = AC.createGain(), t = AC.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + ms / 1000);
+  gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
+  o.connect(gn).connect(AC.destination); o.start(t); o.stop(t + ms / 1000);
+}
+
+/** The manual pages, built once from THE MANUAL data. */
+function buildManual() {
+  const ol = (rules, mod) => "<ol>" + rules.map((r, i) => `<li data-r="${mod}${i}">${i ? "Otherwise, " + r.say[0].toLowerCase() + r.say.slice(1) : r.say}</li>`).join("") + "</ol>";
+  const pages = {
+    wires: `<h3>Wires</h3><p>Count the wires from the top. Use the list for that many wires: the FIRST rule that is true says which wire to cut. Cut only that one.</p>`
+      + Object.keys(WIRE_RULES).map((n) => `<h4>${n} wires</h4>` + ol(WIRE_RULES[n], "w" + n + "-")).join(""),
+    button: `<h3>The Button</h3><p>Ask for the button's color and its word. The first rule that is true says what to do. Tap = press and let go at once.</p>` + ol(BUTTON_RULES, "b")
+      + `<h4>Holding it</h4><p>A strip lights up beside the button. Let go when the countdown shows this digit anywhere:</p><table class="strip">`
+      + Object.entries(STRIP_DIGIT).map(([c, d]) => `<tr><td>${c} strip</td><td><b>${d}</b></td></tr>`).join("") + "</table>",
+    keypad: `<h3>Keypad</h3><p>The bomb shows four symbols. Exactly one column below has all four. Press them in that column's order, top to bottom. A wrong key is a strike.</p><div class="cols">`
+      + KEY_COLUMNS.map((c, i) => `<div><b>${i + 1}</b>${c.map((s) => `<span>${s}<i>${SYMBOLS[s]}</i></span>`).join("")}</div>`).join("") + "</div>",
+    maze: `<h3>Maze</h3><p>Find the maze whose two green circles are in the same places as the bomb's. Talk the white square to the red triangle, one step at a time. Walking into a wall is a strike. The bomb doesn't show the walls.</p><div class="mazes">`
+      + MAZES.map((_, i) => `<figure><canvas data-maze="${i}" width="240" height="240"></canvas>Maze ${MAZE_NAMES[i]}</figure>`).join("") + "</div>",
+  };
+  $("tabs").innerHTML = Object.keys(pages).map((p) => `<button data-p="${p}">${MOD_NAMES[p]}</button>`).join("");
+  $("pages").innerHTML = Object.entries(pages).map(([p, html]) => `<section data-p="${p}">${html}</section>`).join("");
+  $("tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => showPage(b.dataset.p)));
+  $("pages").querySelectorAll("canvas[data-maze]").forEach((c) => drawMazePage(c, MAZES[+c.dataset.maze]));
+  showPage("wires");
+}
+let page = "";
+function showPage(p) {
+  page = p;
+  $("tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.p === p));
+  $("pages").querySelectorAll("section").forEach((s) => (s.hidden = s.dataset.p !== p));
+  $("pages").scrollTop = 0;
+}
+/** One maze as the manual shows it: walls, and the two green circles. */
+function drawMazePage(c, m) {
+  const x = c.getContext("2d"), s = c.width, pad = 14, cell = (s - pad * 2) / MAZE_SIZE;
+  x.fillStyle = "#fffaf0"; x.fillRect(0, 0, s, s);
+  x.strokeStyle = "#2b2418"; x.lineWidth = 4; x.lineCap = "round"; x.strokeRect(pad, pad, s - pad * 2, s - pad * 2);
+  for (let yy = 0; yy < MAZE_SIZE; yy++) for (let xx = 0; xx < MAZE_SIZE; xx++) {
+    const px = pad + xx * cell, py = pad + yy * cell, w = m.walls[yy][xx];
+    x.fillStyle = "#c9bea2"; x.beginPath(); x.arc(px + cell / 2, py + cell / 2, 3, 0, 7); x.fill();
+    x.beginPath(); if (w.r && xx < MAZE_SIZE - 1) { x.moveTo(px + cell, py); x.lineTo(px + cell, py + cell); } if (w.d && yy < MAZE_SIZE - 1) { x.moveTo(px, py + cell); x.lineTo(px + cell, py + cell); } x.stroke();
+  }
+  x.strokeStyle = "#1c8a4e"; x.lineWidth = 4;
+  for (const mk of m.marks) { x.beginPath(); x.arc(pad + (mk[0] + 0.5) * cell, pad + (mk[1] + 0.5) * cell, cell * 0.32, 0, 7); x.stroke(); }
+}
+
+/** Sounds, sparks and flashes for what just changed in state (effects only: nothing here decides anything). */
+const seen = { key: "", strikes: 0, solved: 0, bomb: -1, chat: -1, sec: -1 };
+let phaseAt = 0;
+function effects(g, now) {
+  const key = g.bomb + ":" + g.ph, first = seen.bomb === -1;
+  if (g.bomb !== seen.bomb) { seen.bomb = g.bomb; seen.strikes = g.strikes; seen.solved = g.solved.length; holdStart = 0; keyAt.clear(); solvedAt.clear(); }
+  if (key !== seen.key) {
+    seen.key = key; phaseAt = now;
+    if (!first) {
+      const cx = BOMB_AT.x + BOMB_AT.w / 2, cy = BOMB_AT.y + BOMB_AT.h / 2;
+      if (g.ph === "armed") { tone(880, 120, "square", 0.04); setTimeout(() => tone(1320, 160, "square", 0.04), 130); }
+      if (g.ph === "defused") { burst(cx, cy, ["#3ee08a", "#ffcf3f", "#4fa3ff", "#ff8fd1", "#fff"], 120, 520, 320); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 220, "triangle", 0.06), i * 110)); }
+      if (g.ph === "boom") { burst(cx, cy, ["#ff3b2e", "#ffa94d", "#ffcf3f", "#555", "#222"], 160, 700, 200); flashUntil = now + 900; flashColor = "#fff2d0"; shakeUntil = now + 900; tone(70, 1200, "sawtooth", 0.12, 30); }
+    }
+    fit();
+  }
+  if (g.strikes > seen.strikes) { flashUntil = now + 500; flashColor = "#ff2a1f"; shakeUntil = now + 350; tone(110, 380, "sawtooth", 0.09, 70); }
+  seen.strikes = g.strikes;
+  if (g.solved.length > seen.solved) { for (const m of g.solved.slice(seen.solved)) solvedAt.set(m, now); tone(988, 120, "triangle", 0.06); setTimeout(() => tone(1319, 180, "triangle", 0.06), 100); }
+  seen.solved = g.solved.length;
+  const s = secs(timeLeft(g));
+  if (g.ph === "armed" && s !== seen.sec) { seen.sec = s; tone(s < 30 ? 1500 : 1100, 30, "square", s < 30 ? 0.03 : 0.015); }
+  const c = shared("chat", null);
+  if (c && c.c !== seen.chat) { if (seen.chat >= 0) tone(900 + Math.random() * 300, 50, "sine", 0.02); seen.chat = c.c; }
+}
+
+function phaseText(g) {
+  const left = fmtClock(timeLeft(g));
+  return { brief: `BOMB ${g.lvl} · starts in ${secs(g.endsAt - Date.now())}s`, armed: `BOMB ${g.lvl} · ${left}`, defused: "DEFUSED", off: "CALLED OFF", boom: "BOOM" }[g.ph] || "";
+}
+function banner(g) {
+  const t = Date.now(), me = amDefuser(g), d = esc(nameOf(g.def));
+  if (g.ph === "brief") return !g.def ? "Waiting for a defuser…" : me ? `You have the bomb!<small>${soloRoom() ? `${CONFIG.botName} reads you the manual. Listen, then act fast.` : "Tell the others what you see. They have the manual."}</small>`
+    : `${d} has the bomb<small>You have the manual. Ask what they see.</small>`;
+  if (g.ph === "armed") return t < g.at + 1500 ? "Go!" : "";
+  if (g.ph === "defused") return `<span class="g">Defused!</span><small>${fmtClock(g.left)} left · ${g.streak} in a row. Next bomb is harder.</small>`;
+  if (g.ph === "off") return `${d} walked away<small>This bomb is called off. Someone else takes the next one.</small>`;
+  return "";
+}
+function hint(g) {
+  if (g.ph === "boom") return "";
+  if (amDefuser(g)) return soloRoom() ? `${CONFIG.botName} reads the manual. Tap wires to cut, keys to press. Hold the button if told to.` : "Describe what you see. Tap to cut and press; arrows or tap the grid to walk the maze.";
+  return `Ask ${esc(nameOf(g.def))} what's on the bomb, find the page, say what to do.`;
+}
+let chatRaw = null, quickFor = "";
+function hud(g) {
+  const n = humans().length;
+  $("net").textContent = ATTRACT ? "" : net.offline ? "Offline: playing with bots" : dropped ? "Reconnecting…" : `Online · ${n} player${n === 1 ? "" : "s"}${isHost() ? " · you run the bomb" : ""}`;
+  if (!g) return;
+  const me = amDefuser(g);
+  $("phase").textContent = phaseText(g);
+  const role = ATTRACT ? "" : me ? "You: DEFUSER" : "You: MANUAL";
+  $("role").hidden = !role; $("role").textContent = role;
+  const b = banner(g), html = b ? `<span class="b">${b}</span>` : "";
+  if ($("msg").innerHTML !== html) $("msg").innerHTML = html;
+  // the manual: experts always, and the right half in ?attract
+  const showManual = ATTRACT || !me;
+  $("manual").hidden = !showManual; cv.classList.toggle("ghost", !me && !ATTRACT);
+  if (showManual) {
+    $("mClock").textContent = g.ph === "brief" ? fmtClock(g.left) : fmtClock(timeLeft(g));
+    $("mStrikes").textContent = "✖".repeat(g.strikes) + "·".repeat(Math.max(0, CONFIG.maxStrikes - g.strikes));
+    $("mInfo").textContent = `Bomb ${g.lvl}: ${g.mods.map((m) => MOD_NAMES[m] + (g.solved.includes(m) ? " ✓" : "")).join(" · ")}${g.rate > 1 ? ` · clock ×${g.rate.toFixed(2)}` : ""}`;
+    $("tabs").querySelectorAll("button").forEach((x) => { x.classList.toggle("live", g.mods.includes(x.dataset.p)); x.classList.toggle("done", g.solved.includes(x.dataset.p)); });
+    if (ATTRACT) attractPage(g);
+  }
+  if (ATTRACT) return;
+  const h = hint(g);
+  if ($("hint").innerHTML !== h) $("hint").innerHTML = h;
+  const qset = me ? "defuser" : "expert";
+  if (quickFor !== qset) { quickFor = qset; $("quick").innerHTML = QUICK[qset].map((q) => `<button type="button">${esc(q)}</button>`).join(""); }
+  if (S.shared.chat !== chatRaw) {
+    chatRaw = S.shared.chat;
+    const c = shared("chat", null), lines = c && c.l.length ? c.l : [["", "Say hi. Quick-chat buttons are below, or just talk out loud."]];
+    $("chat").innerHTML = lines.map(([id, text]) => id ? `<div><b style="color:${esc(colorOf(id))}">${esc(nameOf(id))}</b>${esc(text)}</div>` : `<div class="sys">${esc(text)}</div>`).join("");
+    $("chat").scrollTop = 1e6;
+  }
+  renderOver(g);
+}
+/** ?attract: the manual follows Tock, open at the page and rule it is reading. */
+function attractPage(g) {
+  const s = host.secret, focus = g.mods.find((m) => !g.solved.includes(m));
+  if (!focus || !s) return;
+  if (focus !== page) showPage(focus);
+  const b = bombOf(s.seed, g.mods);
+  const id = focus === "wires" ? `w${b.wires.length}-${WIRE_RULES[b.wires.length].indexOf(wireRule(b))}` : focus === "button" ? `b${BUTTON_RULES.indexOf(buttonRule(b))}` : "";
+  $("pages").querySelectorAll("li").forEach((li) => li.classList.toggle("hl", host.bot && host.bot.step >= 2 && li.dataset.r === id));
+  const li = id && $("pages").querySelector(`li[data-r="${id}"]`);
+  if (li && host.bot && host.bot.step >= 2) $("pages").scrollTop = li.offsetTop - $("pages").clientHeight * 0.4;
+}
+let overFor = -1, board = null;
+function renderOver(g) {
+  $("over").hidden = g.ph !== "boom" || ATTRACT;
+  if (g.ph !== "boom") return;
+  $("oTitle").innerHTML = '<span class="r">BOOM!</span>';
+  $("oWhy").textContent = g.why === "time" ? "The clock ran out." : `${CONFIG.maxStrikes} strikes. The bomb had enough.`;
+  $("oNext").textContent = `Next run in ${secs(g.endsAt - Date.now())}s`;
+  $("again").textContent = g.ready.includes(net.sessionId) ? "Ready ✓" : "Play again";
+  if (overFor === g.bomb) return;
+  overFor = g.bomb;
+  $("oYou").textContent = g.streak ? `Your team defused ${g.streak} bomb${g.streak === 1 ? "" : "s"} in a row.` : "No bombs defused this run. Next time!";
+  const list = $("board");
+  if (!board) { list.innerHTML = "<li>Leaderboards need a connection.</li>"; return; }
+  list.innerHTML = "<li>Loading the leaderboard…</li>";
+  (g.streak > 0 ? board.submit(g.streak).catch(() => null) : Promise.resolve()).then(() => board.top(10)).then(({ entries }) => {
+    list.innerHTML = entries.length ? entries.map((e) => `<li>${esc(e.username || "Player")}<span>${e.score}</span></li>`).join("") : "<li>No runs yet. Be the first.</li>";
+  }).catch(() => { list.innerHTML = "<li>Couldn't load the leaderboard.</li>"; });
+}
+/** Two players picked one color (they joined at once): the later sessionId moves. */
+function fixColor() {
+  const others = Object.entries(S.entities.players || {}).filter(([id]) => id !== net.sessionId);
+  if (!others.some(([id, p]) => p.c === myColor && id < net.sessionId) && myColor !== colorOf("bot")) return;
+  const taken = new Set([...others.map(([, p]) => p.c), colorOf("bot")]), free = COLORS.find((c) => !taken.has(c));
+  if (free) { myColor = free; net.me.set("c", free); }
+}
+
+// ── INPUT ───────────────────────────────────────────────────────────────────────────
+const hitAt = (x, y) => HITS.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+cv.addEventListener("pointerdown", (e) => {
+  e.preventDefault(); unlockAudio();
+  if (document.activeElement === $("sayText") && e.pointerType !== "mouse") $("sayText").blur();
+  const h = hitAt(e.clientX, e.clientY);
+  if (!h || ATTRACT) return;
+  if (h.m === "wires") { act({ m: "wires", i: h.k }); tone(1800, 40, "square", 0.04); burst(e.clientX, e.clientY, ["#e08a3c", "#ffcf3f"], 10, 140); }
+  else if (h.m === "button") { pressButton(); cv.setPointerCapture(e.pointerId); }
+  else if (h.m === "keypad") pressKey(h.k);
+  else if (h.m === "maze") step(h.k);
+  else if (h.m === "mazegrid") { const dx = e.clientX - h.ux, dy = e.clientY - h.uy; if (Math.hypot(dx, dy) > 8) step(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "R" : "L") : dy > 0 ? "D" : "U"); }
+});
+cv.addEventListener("pointerup", () => releaseButton());
+cv.addEventListener("pointercancel", () => releaseButton());
+$("quick").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { unlockAudio(); toHost("chat", { t: b.textContent }); } });
+$("say").addEventListener("submit", (e) => {
+  e.preventDefault(); unlockAudio();
+  const text = $("sayText").value.trim();
+  if (text) toHost("chat", { t: text });
+  $("sayText").value = "";
+});
+$("again").addEventListener("click", () => toHost("ready", { r: 1 }));
+$("name").addEventListener("change", () => {
+  myName = $("name").value.trim().slice(0, 14) || myName;
+  try { localStorage.setItem("mpa-name", myName); } catch {}
+  net && net.me.set("n", myName);
+});
+addEventListener("keydown", (e) => {
+  unlockAudio();
+  const typing = document.activeElement && document.activeElement.tagName === "INPUT";
+  const d = { ArrowUp: "U", ArrowDown: "D", ArrowLeft: "L", ArrowRight: "R" }[e.key];
+  if (d && !typing && amDefuser(game())) { e.preventDefault(); step(d); }
+  if (e.key === "Enter" && !typing) { e.preventDefault(); $("sayText").focus(); }
+  if (e.key === "Escape") document.activeElement.blur();
+});
+document.addEventListener("touchmove", (e) => { if (!e.target.closest("#chat, #pages, #quick, #tabs")) e.preventDefault(); }, { passive: false });
+
+// ── MAIN LOOP ───────────────────────────────────────────────────────────────────────
+let last = performance.now(), lastHb = 0, lastHud = 0, wasDef = false;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const t0 = performance.now(); // not `now`: the first frame after a freeze can be stamped from before it ended
+  if (frameAt && t0 - frameAt > 1000) { wokeAt = t0; host.was = false; host.last = null; host.secret = null; } // woke from a stall: drop my host copy, adopt state again (see isHost)
+  frameAt = t0;
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
+  if (now - lastHb > 1000) { lastHb = now; net.me.set("hb", Date.now()); fixColor(); }
+  watchHost();
+  if (isHost()) hostTick(); else host.was = false;
+  const g = game();
+  if (g) {
+    openBomb(g); effects(g, now); autopilot(g, now);
+    if (amDefuser(g) !== wasDef) { wasDef = amDefuser(g); fit(); }
+    if (g.ph !== "armed") holdStart = 0;
+  }
+  draw(g, now, dt);
+  if (now - lastHud > 100) { lastHud = now; hud(g); }
+}
+
+(async function start() {
+  if (ATTRACT) {
+    Object.assign(CONFIG, { levels: [{ mods: ["wires", "keypad", "maze", "button"], secs: 75 }], briefMs: 600, defusedMs: 2600, overMs: 3000, botLineMs: [650, 900], botRepeatMs: 2500 });
+    $("side").hidden = true; $("top").hidden = true;
+  }
+  buildManual();
+  fit();
+  net = await connect();
+  net.onState((st) => { S = st; });
+  net.onDisconnect(() => { dropped = true; $("net").textContent = "Reconnecting…"; });
+  net.onReconnect(() => { dropped = false; });
+  for (const [type, fn] of Object.entries(HANDLERS)) net.on(type, (msg, from) => { if (isHost() && msg) fn(from, msg); });
+  net.on("role", async (msg, from) => { // the defuser's bomb, re-sent to a new host
+    if (!msg || msg.to !== net.sessionId) return;
+    const v = await Seal.open(pkOf(from), msg.box);
+    if (v && isHost()) learnBomb(from, v);
+  });
+  net.on("who", (msg, from) => resendBomb(from));
+  if (!net.offline && typeof MP !== "undefined") board = MP.auth({ key: MP_CONNECT.key, apiUrl: MP_CONNECT.apiUrl }).leaderboard(CONFIG.board);
+  const pk = await Seal.init().catch(() => "");
+  const taken = new Set([...Object.entries(S.entities.players || {}).filter(([id]) => id !== net.sessionId).map(([, p]) => p.c), colorOf("bot")]);
+  myColor = COLORS.find((c) => !taken.has(c)) || COLORS[Math.floor(Math.random() * COLORS.length)];
+  $("name").value = myName;
+  net.me.set({ n: myName, c: myColor, hb: Date.now(), pk });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

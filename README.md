@@ -8,7 +8,7 @@ One sees the bomb. Everyone else has the manual. A multiplayer starter game from
 
 The defuser sees wires, a big button, a symbol keypad and a maze, but no rules. The others have the manual but can't see the bomb. Talk fast: every mistake is a strike and makes the clock run faster.
 
-**Controls:** Click or tap wires, keys and the button (hold it when told); arrow keys or tap the grid for the maze; quick-chat buttons or type.
+**Controls:** Click or tap wires, keys and the button (hold it when told); arrow keys, WASD or tap the grid for the maze; quick-chat buttons or type.
 
 ## Make it yours in the Game Builder
 

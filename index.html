@@ -63,6 +63,7 @@
   .card h2 { margin: 0; font-size: 30px; } .card h3 { margin: 4px 0 0; font-size: 13px; color: var(--gold); text-align: left; }
   #oWhy, #oNext { color: var(--dim); }
   #board { text-align: left; margin: 2px 0; padding-left: 26px; font-size: 14px; min-height: 30px; } #board li span { float: right; }
+  #board li.note { list-style: none; margin-left: -18px; color: var(--dim); }
 </style>
 <script src="https://cdn.multiplayeragent.com/sdk/mp.global.js"></script>
 </head>
@@ -84,7 +85,7 @@
 <div class="hud" id="net">Connecting…</div>
 <div class="over" id="over" hidden><div class="card">
   <h2 id="oTitle"></h2><div id="oWhy"></div><div id="oYou" class="y"></div>
-  <h3>Most bombs defused in a row</h3><ol id="board"><li>Loading…</li></ol>
+  <h3>Most bombs defused in a row</h3><ol id="board"><li class="note">Loading…</li></ol>
   <button class="go" id="again">Play again</button><div id="oNext"></div>
 </div></div>
 <script>
@@ -105,7 +106,7 @@
  *   ME ............ opening my bomb, cutting, pressing, holding, walking the maze
  *   DRAW .......... the bomb and its four modules, particles, flashes
  *   SCREENS ....... manual pages, HUD, banners, hints, chat, results, leaderboard, sounds
- *   INPUT ......... tap/click the bomb, arrow keys for the maze, quick chat, Enter to chat
+ *   INPUT ......... tap/click the bomb, arrow keys or WASD for the maze, quick chat, Enter to chat
  *
  * HOW THE MULTIPLAYER WORKS (a relay room: no server code):
  *   - Each player writes its OWN entity: `n` (name), `c` (color), `pk` (public key) once, and
@@ -883,7 +884,8 @@ function drawMaze(g, mb, x, y, w, h, now, solved) {
     ctx.fillStyle = "#4a5361"; rr(-a / 2, -a / 2, a, a, 6); ctx.fill();
     ctx.fillStyle = "#dfe6ee"; ctx.beginPath(); ctx.moveTo(0, -a * 0.25); ctx.lineTo(a * 0.25, a * 0.18); ctx.lineTo(-a * 0.25, a * 0.18); ctx.fill();
     ctx.restore();
-    HITS.push({ m: "maze", k: d, x: ax - a / 2, y: ay - a / 2, w: a, h: a });
+    const t = Math.max(a, 44); // the tap area is at least 44px even when the arrow is drawn smaller (phones)
+    HITS.unshift({ m: "maze", k: d, x: ax - t / 2, y: ay - t / 2, w: t, h: t });
   }
 }
 /** Experts see the bomb only as a silhouette: the case and its lights, never what's on it. */
@@ -1030,7 +1032,7 @@ function banner(g) {
 }
 function hint(g) {
   if (g.ph === "boom") return "";
-  if (amDefuser(g)) return soloRoom() ? `${CONFIG.botName} reads the manual. Tap wires to cut, keys to press. Hold the button if told to.` : "Describe what you see. Tap to cut and press; arrows or tap the grid to walk the maze.";
+  if (amDefuser(g)) return soloRoom() ? `${CONFIG.botName} reads the manual. Tap to cut, press and hold; arrows or tap the grid for the maze.` : "Describe what you see. Tap to cut and press; arrows/WASD or tap the grid to walk the maze.";
   return `Ask ${esc(nameOf(g.def))} what's on the bomb, find the page, say what to do.`;
 }
 let chatRaw = null, quickFor = "";
@@ -1090,11 +1092,11 @@ function renderOver(g) {
   overFor = g.bomb;
   $("oYou").textContent = g.streak ? `Your team defused ${g.streak} bomb${g.streak === 1 ? "" : "s"} in a row.` : "No bombs defused this run. Next time!";
   const list = $("board");
-  if (!board) { list.innerHTML = "<li>Leaderboards need a connection.</li>"; return; }
-  list.innerHTML = "<li>Loading the leaderboard…</li>";
+  if (!board) { list.innerHTML = '<li class="note">Leaderboards need a connection.</li>'; return; } // status lines are not numbered entries
+  list.innerHTML = '<li class="note">Loading the leaderboard…</li>';
   (g.streak > 0 ? board.submit(g.streak).catch(() => null) : Promise.resolve()).then(() => board.top(10)).then(({ entries }) => {
-    list.innerHTML = entries.length ? entries.map((e) => `<li>${esc(e.username || "Player")}<span>${e.score}</span></li>`).join("") : "<li>No runs yet. Be the first.</li>";
-  }).catch(() => { list.innerHTML = "<li>Couldn't load the leaderboard.</li>"; });
+    list.innerHTML = entries.length ? entries.map((e) => `<li>${esc(e.username || "Player")}<span>${e.score}</span></li>`).join("") : '<li class="note">No runs yet. Be the first.</li>';
+  }).catch(() => { list.innerHTML = '<li class="note">Couldn\'t load the leaderboard.</li>'; });
 }
 /** Two players picked one color (they joined at once): the later sessionId moves. */
 function fixColor() {
@@ -1109,6 +1111,7 @@ const hitAt = (x, y) => HITS.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y 
 cv.addEventListener("pointerdown", (e) => {
   e.preventDefault(); unlockAudio();
   if (document.activeElement === $("sayText") && e.pointerType !== "mouse") $("sayText").blur();
+  if (e.button !== 0) return; // only the main button (a right-click would press the button and lose the let-go)
   const h = hitAt(e.clientX, e.clientY);
   if (!h || ATTRACT) return;
   if (h.m === "wires") { act({ m: "wires", i: h.k }); tone(1800, 40, "square", 0.04); burst(e.clientX, e.clientY, ["#e08a3c", "#ffcf3f"], 10, 140); }
@@ -1117,6 +1120,7 @@ cv.addEventListener("pointerdown", (e) => {
   else if (h.m === "maze") step(h.k);
   else if (h.m === "mazegrid") { const dx = e.clientX - h.ux, dy = e.clientY - h.uy; if (Math.hypot(dx, dy) > 8) step(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "R" : "L") : dy > 0 ? "D" : "U"); }
 });
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
 cv.addEventListener("pointerup", () => releaseButton());
 cv.addEventListener("pointercancel", () => releaseButton());
 $("quick").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { unlockAudio(); toHost("chat", { t: b.textContent }); } });
@@ -1135,8 +1139,8 @@ $("name").addEventListener("change", () => {
 addEventListener("keydown", (e) => {
   unlockAudio();
   const typing = document.activeElement && document.activeElement.tagName === "INPUT";
-  const d = { ArrowUp: "U", ArrowDown: "D", ArrowLeft: "L", ArrowRight: "R" }[e.key];
-  if (d && !typing && amDefuser(game())) { e.preventDefault(); step(d); }
+  const d = { ArrowUp: "U", ArrowDown: "D", ArrowLeft: "L", ArrowRight: "R", KeyW: "U", KeyS: "D", KeyA: "L", KeyD: "R" }[e.code];
+  if (d && !typing && !e.repeat && amDefuser(game())) { e.preventDefault(); step(d); }
   if (e.key === "Enter" && !typing) { e.preventDefault(); $("sayText").focus(); }
   if (e.key === "Escape") document.activeElement.blur();
 });

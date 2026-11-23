@@ -498,8 +498,8 @@ function onAct(from, a) {
   const b = bombOf(s.seed, g.mods), p = s.prog;
   let res = "";
   if (a.m === "wires") {
-    const i = a.i | 0;
-    if (i < 0 || i >= b.wires.length || p.cut.includes(i)) return;
+    const i = a.i;
+    if (!Number.isInteger(i) || i < 0 || i >= b.wires.length || p.cut.includes(i)) return;
     p.cut.push(i); res = i === wireToCut(b) ? "solved" : "strike";
   } else if (a.m === "button") {
     if (a.a === "down") { p.holding = 1; host.boxDirty = true; return; }
@@ -509,15 +509,15 @@ function onAct(from, a) {
     if (held !== want) res = "strike";
     else if (!want) res = "solved";
     else { // let go on the right digit? Trust the defuser's clock if it is close to ours.
-      const mine = fmtClock(timeLeft(g)), theirs = typeof a.t === "string" && Math.abs(clockSecs(a.t) - timeLeft(g) / 1000) < 2.5 ? a.t : mine;
+      const mine = fmtClock(timeLeft(g)), theirs = typeof a.t === "string" && /^\d+:\d\d$/.test(a.t) && Math.abs(clockSecs(a.t) - timeLeft(g) / 1000) < 2.5 ? a.t : mine;
       res = theirs.includes(String(STRIP_DIGIT[b.btn.strip])) ? "solved" : "strike";
     }
   } else if (a.m === "keypad") {
-    const k = a.k | 0, order = keyOrder(b);
-    if (k < 0 || k > 3 || p.keys.includes(k)) return;
+    const k = a.k, order = keyOrder(b);
+    if (!Number.isInteger(k) || k < 0 || k > 3 || p.keys.includes(k)) return;
     if (k === order[p.keys.length]) { p.keys.push(k); res = p.keys.length === 4 ? "solved" : "ok"; } else res = "strike";
   } else if (a.m === "maze") {
-    if (!DIRS[a.d]) return;
+    if (!Object.hasOwn(DIRS, a.d)) return; // only U/D/L/R (not "toString" and the like)
     const m = MAZES[b.maze.i];
     if (!canStep(m, p.pos[0], p.pos[1], a.d)) res = "strike";
     else { p.pos = [p.pos[0] + DIRS[a.d][0], p.pos[1] + DIRS[a.d][1]]; res = p.pos[0] === b.maze.goal[0] && p.pos[1] === b.maze.goal[1] ? "solved" : "ok"; }
@@ -566,18 +566,25 @@ function adopt() {
 /** The defuser re-sent its bomb to me (the new host). */
 function learnBomb(from, v) {
   const g = game();
-  if (!g || from !== g.def || !v || v.b !== g.bomb || (host.secret && host.secret.b === g.bomb)) return;
-  host.secret = { b: v.b, seed: v.seed, prog: v.prog, to: g.def };
+  if (!g || from !== g.def || !v || v.b !== g.bomb || (host.secret && host.secret.b === g.bomb) || !Number.isInteger(v.seed)) return;
+  // Rebuild the progress from what can be true on this bomb, so a broken or edited copy can't jam the checks.
+  const b = bombOf(v.seed, g.mods), p = v.prog || {}, order = keyOrder(b), inGrid = (n) => Number.isInteger(n) && n >= 0 && n < MAZE_SIZE;
+  const cut = Array.isArray(p.cut) ? [...new Set(p.cut.filter((i) => Number.isInteger(i) && i >= 0 && i < b.wires.length))] : [];
+  const keys = [];
+  if (Array.isArray(p.keys)) for (const k of p.keys) { if (k === order[keys.length]) keys.push(k); else break; }
+  const pos = Array.isArray(p.pos) && inGrid(p.pos[0]) && inGrid(p.pos[1]) ? [p.pos[0], p.pos[1]] : [...b.maze.start];
+  host.secret = { b: v.b, seed: v.seed, prog: { cut, keys, pos, holding: p.holding ? 1 : 0 }, to: g.def };
   host.bombOut = v.b; host.boxDirty = true;
 }
 
 function onChat(from, msg) {
   if (!msg || typeof msg.t !== "string") return;
-  const text = msg.t.replace(/\s+/g, " ").trim().slice(0, CONFIG.chatMax);
+  const text = msg.t.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, CONFIG.chatMax);
   if (text) addChat(from, text);
 }
 function addChat(id, text) {
   host.chat = { c: host.chat.c + 1, l: [...host.chat.l, [id, text]].slice(-CONFIG.chatLines) };
+  while (host.chat.l.length > 1 && JSON.stringify(host.chat).length > 1900) host.chat.l.shift(); // a field holds 2048 characters at most
   net.setShared("chat", JSON.stringify(host.chat));
 }
 const sysChat = (text) => addChat("", text);
@@ -1123,6 +1130,7 @@ cv.addEventListener("pointerdown", (e) => {
 cv.addEventListener("contextmenu", (e) => e.preventDefault());
 cv.addEventListener("pointerup", () => releaseButton());
 cv.addEventListener("pointercancel", () => releaseButton());
+addEventListener("blur", () => releaseButton()); // switching away lets go of the button (the let-go would never arrive)
 $("quick").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { unlockAudio(); toHost("chat", { t: b.textContent }); } });
 $("say").addEventListener("submit", (e) => {
   e.preventDefault(); unlockAudio();
@@ -1184,7 +1192,7 @@ function frame(now) {
     const v = await Seal.open(pkOf(from), msg.box);
     if (v && isHost()) learnBomb(from, v);
   });
-  net.on("who", (msg, from) => resendBomb(from));
+  net.on("who", (msg, from) => { if (from === livePlayers()[0]) resendBomb(from); }); // only the host may ask: anyone else would see the bomb
   if (!net.offline && typeof MP !== "undefined") board = MP.auth({ key: MP_CONNECT.key, apiUrl: MP_CONNECT.apiUrl }).leaderboard(CONFIG.board);
   const pk = await Seal.init().catch(() => "");
   const taken = new Set([...Object.entries(S.entities.players || {}).filter(([id]) => id !== net.sessionId).map(([, p]) => p.c), colorOf("bot")]);
